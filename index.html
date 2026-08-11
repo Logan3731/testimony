@@ -37,6 +37,7 @@
   #caseTitle{font-size:14px;font-weight:700;}
   #liarLine{font-size:13px;color:var(--acc);}
   #liarLine b{font-size:15px;}
+  #caseIntro{font-size:12.5px; color:var(--tx2); margin:0 2px 9px;}
 
   /* ── 용의자 보드 ── */
   #board{display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:12px;}
@@ -46,7 +47,8 @@
     transition:transform .07s, border-color .12s, opacity .12s;}
   .sus:active{transform:scale(.95);}
   .sus .sym{font-size:30px; line-height:1;}
-  .sus .tag{position:absolute; top:3px; left:6px; font-size:10px; color:var(--tx2); font-weight:700;}
+  .sus .tag{position:absolute; top:5px; left:0; right:0; text-align:center;
+    font-size:11px; color:var(--tx); font-weight:700; letter-spacing:.02em;}
   .sus .mark{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     font-size:38px; font-weight:800; pointer-events:none;}
   .sus.out{opacity:.35;}
@@ -110,8 +112,8 @@
 <body>
 <div id="app">
   <div id="hud">
-    <div class="hud-cell"><div class="hud-lbl" data-t="score">점수</div><div class="hud-val" id="score">0</div></div>
-    <div class="hud-cell"><div class="hud-lbl" data-t="time">조사 시간</div><div class="hud-val" id="time">—</div></div>
+    <div class="hud-cell"><div class="hud-lbl" data-t="score">해결</div><div class="hud-val" id="score">—</div></div>
+    <div class="hud-cell"><div class="hud-lbl" data-t="time">수사 행동</div><div class="hud-val" id="time">—</div></div>
     <div class="hud-cell"><div class="hud-lbl" data-t="lives">기회</div><div class="hud-val" id="lives">●●●</div></div>
     <button class="icon-btn" id="langBtn">EN</button>
     <button class="icon-btn" id="helpBtn">?</button>
@@ -121,6 +123,7 @@
     <span id="caseTitle"></span>
     <span id="liarLine"></span>
   </div>
+  <div id="caseIntro"></div>
 
   <div id="board"></div>
   <div id="stmts"></div>
@@ -145,7 +148,7 @@
 const CONFIG = {
   LIVES: 3,             // 체포 실패 가능 횟수
   TOTAL_CASES: 10,      // 한 판의 길이. 이걸 다 풀면 완주
-  TIME_BUDGET: 46,      // 판 전체에 주어지는 조사 시간 총량 (회복 없음)
+  TIME_BUDGET: 46,      // 판 전체에 주어지는 수사 행동 횟수 (회복 없음)
   PT_SOLVE: 100,        // 사건 해결 점수 × 사건 번호 × 인원 배율
   // 한 번에 체포할 수 있는 인원과 그때의 점수 배율. 배열 길이 = 최대 인원.
   // ※ 이게 이 게임의 중심축이다. 증언을 하나 덜 읽으면 후보가 거의 항상 2명 남으므로
@@ -193,23 +196,49 @@ const COLORS = [
   {id:'y', hex:'#e2c04a', ko:'노란색', en:'yellow'},
   {id:'g', hex:'#4ab87a', ko:'초록색', en:'green'},
 ];
-const SYMBOLS = [
-  {id:'star', ch:'★', ko:'별',     en:'star'},
-  {id:'circ', ch:'●', ko:'원',     en:'circle'},
-  {id:'tri',  ch:'▲', ko:'삼각형', en:'triangle'},
-  {id:'sq',   ch:'■', ko:'사각형', en:'square'},
+// 용의자를 도형으로 두니 몰입이 안 된다는 지적을 받아 소지품으로 바꿨다.
+// koJ 는 "우산을 / 가위를" 처럼 받침에 따라 갈리는 조사.
+const ITEMS = [
+  {id:'umbrella', ch:'☂', ko:'우산',   koJ:'을', en:'an umbrella'},
+  {id:'pen',      ch:'✎', ko:'만년필', koJ:'을', en:'a fountain pen'},
+  {id:'shears',   ch:'✂', ko:'가위',   koJ:'를', en:'a pair of shears'},
+  {id:'brooch',   ch:'✦', ko:'브로치', koJ:'를', en:'a brooch'},
 ];
-const LETTERS = 'ABCDEFGHIJKLMNOP';   // 용의자 최대 16명 (4색 × 4표식)
 const COLS = 4;
+
+// 용의자 이름 16개. 자리 라벨(A, B, C…) 대신 쓴다.
+const NAMES = [
+  {ko:'윤서린', en:'Seorin'}, {ko:'박정한', en:'Junghan'}, {ko:'최민경', en:'Minkyung'},
+  {ko:'하도진', en:'Dojin'},  {ko:'임세아', en:'Sea'},     {ko:'강태오', en:'Taeo'},
+  {ko:'노유진', en:'Yujin'},  {ko:'서기환', en:'Kihwan'},  {ko:'문해원', en:'Haewon'},
+  {ko:'조석우', en:'Seokwoo'},{ko:'백지완', en:'Jiwan'},   {ko:'구예린', en:'Yerin'},
+  {ko:'신동혁', en:'Donghyuk'},{ko:'오채린', en:'Chaerin'},{ko:'정무열', en:'Muyeol'},
+  {ko:'황선재', en:'Sunjae'},
+];
+
+// 사건 배경. 추리와는 무관한 분위기 문구다.
+const PLACES = [
+  {ko:'부두 창고',     en:'a dockside warehouse'},
+  {ko:'극장 분장실',   en:'a theatre dressing room'},
+  {ko:'기차 식당칸',   en:'a train dining car'},
+  {ko:'저택 서재',     en:'a manor study'},
+  {ko:'시계탑 계단',   en:'the clocktower stairs'},
+  {ko:'병원 뒷문',     en:'a hospital back door'},
+  {ko:'폐업한 사진관', en:'a shuttered photo studio'},
+  {ko:'항구 등대',     en:'the harbour lighthouse'},
+];
 
 /* ─── 언어 ─── */
 let LANG = 'ko';
 const T = {
-  score:{ko:'점수',en:'SCORE'}, time:{ko:'조사 시간',en:'TIME'}, lives:{ko:'기회',en:'LIVES'},
+  // "조사 시간"은 시간이 아니라 행동 횟수인데 시간처럼 읽혀서 헷갈린다는 지적을 받아 이름을 바꿨다.
+  score:{ko:'해결',en:'SOLVED'}, time:{ko:'수사 행동',en:'ACTIONS'}, lives:{ko:'기회',en:'LIVES'},
+  points:{ko:'점수',en:'Score'},
   caseN:{ko:(n,tot)=>`사건 ${n}/${tot}`, en:(n,tot)=>`Case ${n}/${tot}`},
   liarLine:{ko:(k,n)=>`증언 ${n}개 중 <b>${k}개</b>가 거짓`,
             en:(k,n)=>`<b>${k}</b> of ${n} testimonies ${k===1?'is a lie':'are lies'}`},
-  locked:{ko:'증언 열기 (조사 시간 1)', en:'Open testimony (1 time)'},
+  locked:{ko:'증언 듣기 (행동 1)', en:'Hear testimony (1 action)'},
+  caseIntro:{ko:p=>`${p}에서 시신이 발견됐다.`, en:p=>`A body was found in ${p}.`},
   witness:{ko:i=>`증인 ${i}`, en:i=>`W${i}`},
   accuse:{ko:'체포하기', en:'ARREST'},
   cancel:{ko:'취소', en:'Cancel'},
@@ -219,10 +248,10 @@ const T = {
   markHint:{ko:'용의자를 눌러 표시: 탈락 ✕ → 유력 ?', en:'Tap a suspect to mark: out ✕ → likely ?'},
   maxPicked:{ko:n=>`최대 ${n}명까지만 체포할 수 있다`, en:n=>`You can arrest at most ${n}`},
   arrested:{ko:n=>`체포 ${n}명`, en:n=>`Arrested ${n}`},
-  noTime:{ko:'조사 시간이 없다. 남은 후보로 체포할 수밖에.', en:'No time left. Arrest from what you have.'},
+  noTime:{ko:'남은 수사 행동이 없다. 지금 아는 것으로 체포해야 한다.', en:'No actions left. Arrest with what you have.'},
   correct:{ko:'검거', en:'ARRESTED'},
   wrong:{ko:'오인', en:'WRONG'},
-  wasCulprit:{ko:l=>`진범은 ${l} 였다`, en:l=>`The culprit was ${l}`},
+  wasCulprit:{ko:l=>`진범은 ${l}`, en:l=>`The culprit was ${l}`},
   truth:{ko:'진실', en:'TRUE'}, lie:{ko:'거짓', en:'LIE'},
   ptSolve:{ko:'사건 해결', en:'Case solved'},
   ptMult:{ko:(n,p)=>`${n}명 체포 · 점수 ${p}%`, en:(n,p)=>`${n} arrested · ${p}% score`},
@@ -235,8 +264,8 @@ const T = {
   busted:{ko:'수사 중단', en:'INVESTIGATION HALTED'},
   best:{ko:'최고 기록', en:'Best'},
   retry:{ko:'다시 수사', en:'New investigation'},
-  solvedN:{ko:(s,tot)=>`${tot}건 중 ${s}건 해결`, en:(s,tot)=>`${s} of ${tot} cases solved`},
-  timeLeftEnd:{ko:t=>`쓰지 않은 조사 시간 ${t}`, en:t=>`${t} time unspent`},
+  solvedN:{ko:(s,tot)=>`${tot}건 중 ${s}건 해결`, en:(s,tot)=>`${s} of ${tot} solved`},
+  timeLeftEnd:{ko:t=>`남은 행동 ${t}`, en:t=>`${t} actions left`},
   title:{ko:'증언', en:'TESTIMONY'},
   subtitle:{ko:'거짓말하는 증인이 섞여 있다', en:'Some witnesses are lying'},
   start:{ko:'수사 시작', en:'START'},
@@ -245,15 +274,15 @@ const T = {
   rules:{ko:[
     '용의자 중 <b>범인은 정확히 한 명</b>이다.',
     '증인들이 범인에 대해 증언한다. 그중 <b>정확히 몇 개가 거짓인지</b>는 알려준다. 누가 거짓말쟁이인지는 안 알려준다.',
-    `한 판은 사건 ${CONFIG.TOTAL_CASES}개다. 증언은 잠겨 있고 하나 열 때마다 조사 시간 1이 드는데, <b>판 전체에 ${CONFIG.TIME_BUDGET}밖에 없고 회복되지 않는다.</b> 증언을 다 읽으려면 ${TOTAL_STMTS}이 필요하니, 어느 사건에 몰아줄지 정해야 한다.`,
+    `한 판은 사건 ${CONFIG.TOTAL_CASES}개다. 증언 하나를 들으려면 <b>수사 행동 1</b>이 드는데, <b>판 전체에 ${CONFIG.TIME_BUDGET}번밖에 없고 회복되지 않는다.</b> 증언을 다 들으려면 ${TOTAL_STMTS}번이 필요하니, 어느 사건에 몰아줄지 정해야 한다.`,
     '<b>아직 안 읽은 증언에도 거짓이 숨어 있다.</b> 읽은 것이 전부 참처럼 보여도, 거짓은 안 읽은 쪽에 있을 수 있다.',
     `<b>체포는 최대 ${CONFIG.ARREST_MULT.length}명까지 한꺼번에 할 수 있다.</b> 범인이 명단 안에 있으면 성공. 대신 인원이 늘수록 점수가 깎인다 — ${CONFIG.ARREST_MULT.map((m,i)=>`${i+1}명 ${Math.round(m*100)}%`).join(', ')}.`,
-    '그래서 증언을 다 읽을 필요가 없다. <b>후보를 2명까지만 좁히고 둘 다 잡으면 확실히 성공한다.</b> 점수를 깎아서 시간을 사는 셈이다.',
+    '그래서 증언을 다 들을 필요가 없다. <b>후보를 2명까지만 좁히고 둘 다 잡으면 확실히 성공한다.</b> 점수를 깎아서 시간을 사는 셈이다.',
     '범인이 명단에 없으면 기회가 하나 줄어든다. 세 번 실패하면 끝.',
   ], en:[
     'Exactly <b>one</b> suspect is guilty.',
     'Witnesses testify about the culprit. You are told <b>how many of them lie</b> — never which ones.',
-    `A run is ${CONFIG.TOTAL_CASES} cases. Opening a testimony costs 1 time, and <b>you get ${CONFIG.TIME_BUDGET} for the whole run — it never refills.</b> Reading every testimony would take ${TOTAL_STMTS}, so you must choose where to spend.`,
+    `A run is ${CONFIG.TOTAL_CASES} cases. Hearing a testimony costs <b>1 action</b>, and <b>you get ${CONFIG.TIME_BUDGET} for the whole run — they never refill.</b> Hearing every testimony would take ${TOTAL_STMTS}, so you must choose where to spend them.`,
     '<b>Unread testimonies can hold the lies too.</b> Even if everything you read looks true, the lies may be hiding in what you skipped.',
     `<b>You may arrest up to ${CONFIG.ARREST_MULT.length} suspects at once.</b> Success if the culprit is among them — but more names means less score: ${CONFIG.ARREST_MULT.map((m,i)=>`${i+1} = ${Math.round(m*100)}%`).join(', ')}.`,
     'So you never have to read everything. <b>Narrow it to 2 and take them both — that is a guaranteed catch.</b> You are trading score for time.',
@@ -272,12 +301,12 @@ function makePredicates(sus, rows){
     add('c+'+c.id, s=>s.color.id===c.id, `범인은 ${c.ko} 옷을 입고 있었다.`, `The culprit wore ${c.en}.`);
     add('c-'+c.id, s=>s.color.id!==c.id, `범인은 ${c.ko} 옷이 아니었다.`,   `The culprit did not wear ${c.en}.`);
   });
-  SYMBOLS.forEach(y=>{
-    add('s+'+y.id, s=>s.sym.id===y.id, `범인은 ${y.ko} 표식을 달고 있었다.`, `The culprit bore the ${y.en}.`);
-    add('s-'+y.id, s=>s.sym.id!==y.id, `범인은 ${y.ko} 표식이 아니었다.`,   `The culprit did not bear the ${y.en}.`);
+  ITEMS.forEach(y=>{
+    add('s+'+y.id, s=>s.item.id===y.id, `범인은 ${y.ko}${y.koJ} 들고 있었다.`,     `The culprit was carrying ${y.en}.`);
+    add('s-'+y.id, s=>s.item.id!==y.id, `범인은 ${y.ko}${y.koJ} 들고 있지 않았다.`, `The culprit was not carrying ${y.en}.`);
   });
-  add('pL', s=>s.col < COLS/2, '범인은 왼쪽 절반에 서 있었다.', 'The culprit stood in the left half.');
-  add('pR', s=>s.col >= COLS/2, '범인은 오른쪽 절반에 서 있었다.', 'The culprit stood in the right half.');
+  add('pL', s=>s.col < COLS/2, '범인은 왼쪽 통로 쪽에 있었다.', 'The culprit was on the left side.');
+  add('pR', s=>s.col >= COLS/2, '범인은 오른쪽 통로 쪽에 있었다.', 'The culprit was on the right side.');
   for(let r=0;r<rows;r++){
     add('r+'+r, s=>s.row===r, `범인은 ${r+1}번째 줄에 서 있었다.`, `The culprit stood in row ${r+1}.`);
     add('r-'+r, s=>s.row!==r, `범인은 ${r+1}번째 줄이 아니었다.`,  `The culprit was not in row ${r+1}.`);
@@ -294,9 +323,10 @@ const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]
 
 function buildSuspects(n){
   const pairs = [];
-  COLORS.forEach(c=>SYMBOLS.forEach(y=>pairs.push({color:c, sym:y})));
+  COLORS.forEach(c=>ITEMS.forEach(y=>pairs.push({color:c, item:y})));
   const picked = shuffle(pairs).slice(0, n);
-  return picked.map((p,i)=>({...p, idx:i, row:Math.floor(i/COLS), col:i%COLS, letter:LETTERS[i]}));
+  const names = shuffle(NAMES.slice());
+  return picked.map((p,i)=>({...p, idx:i, row:Math.floor(i/COLS), col:i%COLS, name:names[i]}));
 }
 
 // 부분 정보로 s가 아직 가능한가?  거짓 개수 ≤ K,  참 개수 ≤ N-K
@@ -357,7 +387,8 @@ function generateCase(caseNo){
     const minRead = minReadCount(sus, stmts, cfg.liars);
     if(minRead < 2) continue;   // 증언 하나로 끝나면 추리가 아니다
 
-    return {sus, stmts, culprit, liars:cfg.liars, minRead, caseNo};
+    return {sus, stmts, culprit, liars:cfg.liars, minRead, caseNo,
+            place: PLACES[rnd(PLACES.length)]};
   }
   return generateCase(1); // 이론상 도달 불가
 }
@@ -399,12 +430,13 @@ const $ = id => document.getElementById(id);
 
 function render(){
   const c = G.cur;
-  $('score').textContent = G.score.toLocaleString();
+  $('score').textContent = `${G.solved}/${CONFIG.TOTAL_CASES}`;
   $('time').textContent  = G.time;
   $('time').className = 'hud-val' + (G.time <= 5 ? ' low' : '');
   $('lives').textContent = '●'.repeat(G.lives) + '○'.repeat(CONFIG.LIVES - G.lives);
   $('caseTitle').textContent = t('caseN', c.caseNo, CONFIG.TOTAL_CASES);
   $('liarLine').innerHTML = t('liarLine', c.liars, c.stmts.length);
+  $('caseIntro').textContent = t('caseIntro', c.place[LANG]);
 
   // 보드
   const b = $('board');
@@ -415,8 +447,8 @@ function render(){
     const m = G.marks[s.idx];
     const picked = G.picks.includes(s.idx);
     el.className = 'sus' + (picked ? ' picked' : m==='out' ? ' out' : m==='hot' ? ' hot' : '');
-    el.innerHTML = `<span class="tag">${s.letter}</span>
-      <span class="sym" style="color:${s.color.hex}">${s.sym.ch}</span>
+    el.innerHTML = `<span class="tag">${s.name[LANG]}</span>
+      <span class="sym" style="color:${s.color.hex}">${s.item.ch}</span>
       <span class="mark">${picked?'✓':m==='out'?'✕':m==='hot'?'?':''}</span>`;
     el.onclick = ()=>onSuspect(s);
     b.appendChild(el);
@@ -447,7 +479,7 @@ function render(){
     if(!n) go.style.opacity = .45;
     a.append(no, go);
     $('hintline').textContent = G.picks.length
-      ? c.sus.filter(s=>G.picks.includes(s.idx)).map(s=>s.letter).join(', ')
+      ? c.sus.filter(s=>G.picks.includes(s.idx)).map(s=>s.name[LANG]).join(', ')
       : t('pickWho', MAX_ARREST);
   }else{
     a.append(mkBtn(t('accuse'), 'btn danger', ()=>{ G.accusing=true; render(); }));
@@ -516,7 +548,7 @@ function doArrest(){
 function showResult(right, lines){
   const c = G.cur;
   const dead = G.lives <= 0;
-  const picked = c.sus.filter(s=>G.picks.includes(s.idx)).map(s=>s.letter).join(', ');
+  const picked = c.sus.filter(s=>G.picks.includes(s.idx)).map(s=>s.name[LANG]).join(', ');
   const stmtRows = c.stmts.map(st=>
     `<div class="stmt ${G.opened.includes(st.who-1)?'':'dim'}">
        <span class="who">${t('witness', st.who)}</span>
@@ -526,7 +558,7 @@ function showResult(right, lines){
 
   $('resultCard').innerHTML = `
     <h2 style="color:${right?'var(--good)':'var(--bad)'}">${right?t('correct'):t('wrong')}</h2>
-    <p>${t('wasCulprit', c.culprit.letter)} <span style="color:${c.culprit.color.hex};font-size:18px">${c.culprit.sym.ch}</span>
+    <p>${t('wasCulprit', c.culprit.name[LANG])} <span style="color:${c.culprit.color.hex};font-size:18px">${c.culprit.item.ch}</span>
        &nbsp;—&nbsp; ${t('arrested', G.picks.length)}: <b>${picked}</b></p>
     <h3>${t('minRead', c.minRead)} · ${t('youRead', G.opened.length)}</h3>
     <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">${stmtRows}</div>
@@ -550,8 +582,8 @@ function showGameOver(busted){
   localStorage.setItem('testimony_best', best);
   $('resultCard').innerHTML = `
     <h2 style="color:${busted?'var(--bad)':'var(--good)'}">${busted ? t('busted') : t('cleared')}</h2>
-    <p>${t('solvedN', G.solved, CONFIG.TOTAL_CASES)} · ${t('timeLeftEnd', G.time)}</p>
-    <div class="big">${G.score.toLocaleString()}</div>
+    <div class="big">${t('solvedN', G.solved, CONFIG.TOTAL_CASES)}</div>
+    <p style="text-align:center">${t('points')} ${G.score.toLocaleString()} · ${t('timeLeftEnd', G.time)}</p>
     <p style="text-align:center">${t('best')} ${best.toLocaleString()}</p>
     <div style="margin-top:16px"></div>`;
   $('resultCard').appendChild(mkBtn(t('retry'), 'btn primary', ()=>{
