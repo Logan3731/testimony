@@ -51,8 +51,12 @@
   .pbody{flex:1; min-width:0;}
   .pname{font-size:14px; font-weight:700;}
   .pjob{font-size:11.5px; color:var(--tx2); margin-left:6px; font-weight:400;}
-  .psay{font-size:14px; line-height:1.5; margin-top:4px; color:var(--paper);
+  .pmot{font-size:11.5px; color:var(--tx2); margin-top:3px;}
+  .pmot::before{content:'수사 기록 — '; color:#6f6555;}
+  html[lang="en"] .pmot::before{content:'case file — ';}
+  .psay{font-size:14px; line-height:1.55; margin-top:6px; color:var(--paper);
     font-style:italic;}
+  .psay b{font-style:normal; color:#fff; font-weight:700;}
   .pmark{flex:0 0 auto; width:22px; text-align:center; font-size:17px; font-weight:800;}
 
   .p.out{opacity:.4;}
@@ -182,6 +186,33 @@ const CAST = [
 ];
 const FACE_COLORS = ['#c98b5a','#a8895f','#8f9a6b','#7c8fa3','#a67f8c','#9b8caa','#b0906a','#89a08f'];
 
+// 진술자가 있던 자리. "왜 그걸 아는지"의 근거가 된다.
+const SPOTS = [
+  {ko:'뒷문 쪽',    en:'the back door'},
+  {ko:'복도 끝',    en:'the end of the corridor'},
+  {ko:'계단참',     en:'the stairwell'},
+  {ko:'창가',       en:'the window'},
+  {ko:'좁은 통로',  en:'the narrow passage'},
+  {ko:'문 바로 앞', en:'just outside the door'},
+  {ko:'구석 자리',  en:'the corner'},
+  {ko:'바깥 골목',  en:'the alley outside'},
+];
+
+// 피해자와의 관계. 전원이 하나씩 갖는다 — 누구 하나를 가리키는 단서가 아니라
+// "여기 있는 전부에게 이유가 있었다"는 배경이다. 추리에는 관여하지 않는다.
+const MOTIVES = [
+  {ko:'피해자에게 돈을 빌려준 사이',   en:'had lent the victim money'},
+  {ko:'피해자와 크게 다툰 적이 있다',  en:'had quarrelled with the victim'},
+  {ko:'피해자의 옛 동업자',            en:"the victim's former partner"},
+  {ko:'해고를 앞두고 있었다',          en:'was about to be dismissed'},
+  {ko:'피해자에게 약점을 잡혀 있었다', en:'was being blackmailed'},
+  {ko:'유산의 상속인',                 en:'stood to inherit'},
+  {ko:'같은 자리를 노리던 경쟁자',     en:'was after the same position'},
+  {ko:'피해자의 비밀을 알고 있었다',   en:"knew the victim's secret"},
+  {ko:'빚 독촉에 시달리고 있었다',     en:'was hounded by creditors'},
+  {ko:'오래 연락을 끊었던 가족',       en:'was estranged family'},
+];
+
 const PLACES = [
   {ko:'부두 창고',     en:'a dockside warehouse'},
   {ko:'극장 분장실',   en:'a theatre dressing room'},
@@ -242,14 +273,18 @@ const T = {
     '한 사건에 <b>범인은 정확히 한 명</b>이다.',
     '용의자들이 각자 한마디씩 한다. <b>범인이 한 말은 반드시 거짓이다.</b>',
     '결백한 사람 중에도 거짓말하는 사람이 섞이는 사건이 있다. <b>몇 명인지는 사건마다 알려준다.</b> 누구인지는 안 알려준다.',
-    '"저 사람은 거짓말을 하고 있다" 같은 말도 나온다. 그 말 자체의 참·거짓도 따져야 한다.',
+    '각자 자기가 어디서 무엇을 봤는지까지 말한다. <b>참·거짓을 따지는 건 굵게 표시된 주장뿐이다.</b> 앞의 이야기는 그가 왜 그렇게 말하는지일 뿐, 따로 검증할 필요는 없다.',
+    '"저 사람은 거짓말을 하고 있다" 같은 주장도 나온다. 그 주장 자체의 참·거짓도 따져야 한다.',
+    '피해자와의 관계는 <b>전원이 하나씩</b> 갖고 있다. 여기 있는 누구에게나 이유가 있었다는 뜻이지, 범인을 가리키는 단서는 아니다.',
     '진술은 처음부터 전부 보인다. <b>숨겨진 정보도, 찍어야 하는 상황도 없다.</b> 앞뒤가 맞는 답은 언제나 하나뿐이다.',
     '틀리게 지목하면 기회가 하나 줄어든다. 세 번 틀리면 수사가 중단된다.',
   ], en:[
     'Exactly <b>one</b> suspect is guilty.',
     'Each suspect says one thing. <b>Whatever the culprit says is false.</b>',
     'In some cases innocent people lie too. <b>You are told how many</b> — never which ones.',
-    'Statements like "he is lying" also appear. You must judge whether that claim itself holds.',
+    'Each also says where they were and what they saw. <b>Only the claim in bold is judged true or false.</b> The rest explains why they say it — you do not need to verify it separately.',
+    'Claims like "he is lying" also appear. You must judge whether that claim itself holds.',
+    '<b>Every</b> suspect has a connection to the victim. It means everyone here had a reason — it is not a clue to the culprit.',
     'Every statement is visible from the start. <b>Nothing is hidden and you never have to guess.</b> Exactly one answer fits all of it.',
     'A wrong accusation costs a life. Three and the investigation ends.',
   ]},
@@ -275,23 +310,51 @@ function stmtIsTrue(st, culprit, liarSet){
     case 'truth':    return !liarSet.has(st.target);
   }
 }
+/* 진술문 만들기.
+   앞부분은 "그걸 어떻게 아는가"를 대는 근거이고, <b>로 감싼 뒷부분이 실제 주장이다.
+   참·거짓은 굵은 주장에 대해서만 따진다 (규칙 설명에도 그렇게 적어뒀다).
+   근거를 붙인 이유: "박정한은 거짓말을 하고 있다"를 화자가 어떻게 아는지 설명할 수
+   없으면 추리물이 아니라 이름표 붙은 논리 기호가 된다는 지적을 받았다. */
 function stmtText(st, people){
-  const who = st.target != null ? people[st.target].name[LANG] : null;
+  const X = st.target != null ? people[st.target].name[LANG] : null;
+  const S = SPOTS[st.spot][LANG];
+  const v = st.v;
+
   if(LANG === 'ko'){
     switch(st.type){
-      case 'accuse':   return `${iGa(who)} 범인이다.`;
-      case 'clear':    return `${eunNeun(who)} 범인이 아니다.`;
-      case 'denySelf': return '나는 범인이 아니다.';
-      case 'liar':     return `${eunNeun(who)} 거짓말을 하고 있다.`;
-      case 'truth':    return `${eunNeun(who)} 진실을 말하고 있다.`;
+      case 'accuse': return v
+        ? `${eunNeun(X)} 그날 밤 손을 떨고 있었다. 내가 똑똑히 봤다. <b>${iGa(X)} 범인이다.</b>`
+        : `나는 ${S}에 있었다. ${iGa(X)} 거기서 빠져나오는 걸 봤다. <b>${iGa(X)} 범인이다.</b>`;
+      case 'clear': return v
+        ? `내가 ${S}에서 ${eulReul(X)} 계속 보고 있었다. <b>${eunNeun(X)} 범인이 아니다.</b>`
+        : `${eunNeun(X)} 그 시간 내내 ${S}에서 나와 함께 있었다. <b>${eunNeun(X)} 범인이 아니다.</b>`;
+      case 'denySelf': return v
+        ? `나는 ${S}에서 한 발짝도 움직이지 않았다. <b>나는 범인이 아니다.</b>`
+        : `나는 그때 ${S}에 있었고 아무 데도 가지 않았다. <b>나는 범인이 아니다.</b>`;
+      case 'liar': return v
+        ? `나는 ${S}에 있었으니까 안다. <b>${eunNeun(X)} 거짓말을 하고 있다.</b>`
+        : `${iGa(X)} 한 말은 내가 ${S}에서 본 것과 다르다. <b>${eunNeun(X)} 거짓말을 하고 있다.</b>`;
+      case 'truth': return v
+        ? `${iGa(X)} 한 말은 내가 아는 것과 정확히 맞는다. <b>${eunNeun(X)} 진실을 말하고 있다.</b>`
+        : `나도 ${S}에서 같은 것을 봤다. <b>${eunNeun(X)} 진실을 말하고 있다.</b>`;
     }
   }
   switch(st.type){
-    case 'accuse':   return `${who} did it.`;
-    case 'clear':    return `${who} didn't do it.`;
-    case 'denySelf': return `I didn't do it.`;
-    case 'liar':     return `${who} is lying.`;
-    case 'truth':    return `${who} is telling the truth.`;
+    case 'accuse': return v
+      ? `${X}'s hands were shaking that night. I saw it clearly. <b>${X} did it.</b>`
+      : `I was at ${S}. I saw ${X} slip away from there. <b>${X} did it.</b>`;
+    case 'clear': return v
+      ? `I had ${X} in sight from ${S} all evening. <b>${X} didn't do it.</b>`
+      : `${X} was with me at ${S} the whole time. <b>${X} didn't do it.</b>`;
+    case 'denySelf': return v
+      ? `I never moved from ${S}. <b>I didn't do it.</b>`
+      : `I was at ${S} the whole time and went nowhere. <b>I didn't do it.</b>`;
+    case 'liar': return v
+      ? `I was at ${S}, so I know. <b>${X} is lying.</b>`
+      : `What ${X} says does not match what I saw from ${S}. <b>${X} is lying.</b>`;
+    case 'truth': return v
+      ? `What ${X} says matches exactly what I know. <b>${X} is telling the truth.</b>`
+      : `I saw the same thing from ${S}. <b>${X} is telling the truth.</b>`;
   }
 }
 
@@ -390,11 +453,16 @@ function generateCase(caseNo){
     }
     if(needed < minNeeded) continue;
 
-    const cast = shuffle(CAST.slice()).slice(0, n);
+    const cast    = shuffle(CAST.slice()).slice(0, n);
+    const motives = shuffle(MOTIVES.slice());
+    const spots   = shuffle(SPOTS.map((_,i)=>i));
     const people = cast.map((c,i)=>({
       idx:i, name:{ko:c.ko, en:c.en}, job:{ko:c.jko, en:c.jen},
+      motive: motives[i % motives.length],
       face:FACE_COLORS[i % FACE_COLORS.length],
     }));
+    // 진술자마다 있던 자리를 하나씩 준다. 그 자리가 "그걸 어떻게 아는지"의 근거가 된다.
+    stmts.forEach(st=>{ st.spot = spots[st.speaker % spots.length]; st.v = rnd(2); });
     return {people, stmts, culprit, liars:liarSet, extraLiars:K, caseNo, place:pick(PLACES)};
   }
   return null;
@@ -457,6 +525,7 @@ function render(){
       <div class="face" style="background:${p.face}">${p.name[LANG][0]}</div>
       <div class="pbody">
         <div class="pname">${p.name[LANG]}<span class="pjob">${p.job[LANG]}</span></div>
+        <div class="pmot">${p.motive[LANG]}</div>
         <div class="psay">“${stmtText(c.stmts[p.idx], c.people)}”</div>
       </div>
       <div class="pmark">${picked ? '✓' : m==='out' ? '✕' : m==='hot' ? '?' : ''}</div>`;
