@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>증언 — 추리 게임</title>
+<meta name="description" content="증인 중 몇 명이 거짓말을 하고 있다. 누가 거짓말쟁이인지는 알려주지 않는다.">
+<meta name="theme-color" content="#12141a">
+<meta property="og:title" content="증언 — Testimony">
+<meta property="og:description" content="증인 중 몇 명이 거짓말을 하고 있다. 누가 거짓말쟁이인지는 알려주지 않는다.">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --bg:#12141a; --panel:#1b1e27; --panel2:#232734; --line:#333949;
+    --tx:#e6e8ef; --tx2:#98a0b5; --acc:#e8c46a; --bad:#e2504a; --good:#4ab87a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--tx);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",system-ui,sans-serif;}
+  body{display:flex; justify-content:center; padding:10px;}
+  #app{width:100%; max-width:560px;}
+
+  /* ── 상단 바 ── */
+  #hud{display:flex; gap:8px; align-items:center; background:var(--panel);
+    border:1px solid var(--line); border-radius:12px; padding:9px 12px; margin-bottom:10px;}
+  .hud-cell{flex:1; min-width:0;}
+  .hud-lbl{font-size:10px; color:var(--tx2); letter-spacing:.06em;}
+  .hud-val{font-size:16px; font-weight:700; margin-top:1px; white-space:nowrap;}
+  #lives{color:var(--bad); letter-spacing:2px;}
+  #time.low{color:var(--bad);}
+  .icon-btn{background:none;border:1px solid var(--line);color:var(--tx2);border-radius:8px;
+    padding:5px 9px;font-size:12px;cursor:pointer;font-family:inherit;}
+  .icon-btn:hover{color:var(--tx); border-color:var(--tx2);}
+
+  /* ── 사건 제목 ── */
+  #caseline{display:flex;align-items:baseline;gap:8px;margin:0 2px 8px;}
+  #caseTitle{font-size:14px;font-weight:700;}
+  #liarLine{font-size:13px;color:var(--acc);}
+  #liarLine b{font-size:15px;}
+  #caseIntro{font-size:12.5px; color:var(--tx2); margin:0 2px 9px;}
+
+  /* ── 용의자 보드 ── */
+  #board{display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:12px;}
+  .sus{position:relative; background:var(--panel); border:2px solid var(--line);
+    border-radius:11px; aspect-ratio:1/0.82; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; cursor:pointer; user-select:none;
+    transition:transform .07s, border-color .12s, opacity .12s;}
+  .sus:active{transform:scale(.95);}
+  .sus .sym{font-size:30px; line-height:1;}
+  .sus .tag{position:absolute; top:5px; left:0; right:0; text-align:center;
+    font-size:11px; color:var(--tx); font-weight:700; letter-spacing:.02em;}
+  .sus .mark{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:38px; font-weight:800; pointer-events:none;}
+  .sus.out{opacity:.35;}
+  .sus.out .mark{color:var(--bad);}
+  .sus.hot{border-color:var(--acc);}
+  .sus.hot .mark{color:var(--acc); font-size:26px; align-items:flex-end; padding-bottom:6px;}
+  #board.accusing .sus{border-color:#5a2b2b;}
+  .sus.picked{border-color:var(--bad)!important; background:#2b1a1c; opacity:1;}
+  .sus.picked .mark{color:var(--bad); font-size:26px; align-items:flex-end; padding-bottom:6px;}
+  .sus.culprit{border-color:var(--good)!important; animation:none;}
+  .sus.wrongpick{border-color:var(--bad)!important; animation:none;}
+
+  /* ── 증언 목록 ── */
+  #stmts{display:flex; flex-direction:column; gap:6px;}
+  .stmt{display:flex; align-items:center; gap:9px; background:var(--panel);
+    border:1px solid var(--line); border-radius:10px; padding:10px 11px;
+    font-size:13.5px; line-height:1.35; text-align:left; width:100%;
+    font-family:inherit; color:var(--tx); cursor:default;}
+  .stmt .who{flex:0 0 auto; font-size:11px; color:var(--tx2); font-weight:700;}
+  .stmt .txt{flex:1;}
+  .stmt.locked{cursor:pointer; border-style:dashed;}
+  .stmt.locked .txt{color:var(--tx2);}
+  .stmt.locked:hover{border-color:var(--acc);}
+  .stmt.locked:active{transform:scale(.99);}
+  .badge{flex:0 0 auto; font-size:11px; font-weight:700; padding:2px 7px; border-radius:6px;}
+  .badge.t{background:#1e3a2b; color:var(--good);}
+  .badge.f{background:#3a1e1e; color:var(--bad);}
+  .stmt.dim{opacity:.45;}
+
+  /* ── 하단 액션 ── */
+  #actions{margin-top:12px; display:flex; gap:8px;}
+  .btn{flex:1; padding:13px; border-radius:11px; border:1px solid var(--line);
+    background:var(--panel2); color:var(--tx); font-size:14px; font-weight:700;
+    font-family:inherit; cursor:pointer;}
+  .btn:active{transform:scale(.98);}
+  .btn.primary{background:var(--acc); color:#1a1a1a; border-color:var(--acc);}
+  .btn.danger{background:#3a1e1e; color:var(--bad); border-color:#5a2b2b;}
+  #hintline{margin-top:9px; font-size:12px; color:var(--tx2); text-align:center; min-height:16px;}
+
+  /* ── 오버레이 ── */
+  .ov{position:fixed; inset:0; background:rgba(10,11,15,.9); display:flex;
+    align-items:center; justify-content:center; padding:16px; z-index:20;}
+  .ov.hidden{display:none;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:20px; width:100%; max-width:420px; max-height:88vh; overflow:auto;}
+  .card h2{margin:0 0 4px; font-size:20px;}
+  .card h3{margin:16px 0 6px; font-size:13px; color:var(--tx2); letter-spacing:.05em;}
+  .card p{margin:6px 0; font-size:13.5px; line-height:1.6; color:var(--tx2);}
+  .card p b{color:var(--tx);}
+  .scoreline{display:flex; justify-content:space-between; font-size:13.5px; padding:5px 0;
+    border-bottom:1px solid var(--line);}
+  .scoreline.total{border:none; font-size:16px; font-weight:700; padding-top:10px;}
+  .scoreline .v{font-weight:700;}
+  .scoreline .v.plus{color:var(--good);}
+  .big{font-size:34px; font-weight:800; text-align:center; margin:6px 0;}
+  ul.rules{margin:6px 0; padding-left:18px; font-size:13.5px; line-height:1.65; color:var(--tx2);}
+  ul.rules li{margin-bottom:6px;}
+  ul.rules b{color:var(--tx);}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div class="hud-cell"><div class="hud-lbl" data-t="score">해결</div><div class="hud-val" id="score">—</div></div>
+    <div class="hud-cell"><div class="hud-lbl" data-t="time">수사 행동</div><div class="hud-val" id="time">—</div></div>
+    <div class="hud-cell"><div class="hud-lbl" data-t="lives">기회</div><div class="hud-val" id="lives">●●●</div></div>
+    <button class="icon-btn" id="langBtn">EN</button>
+    <button class="icon-btn" id="helpBtn">?</button>
+  </div>
+
+  <div id="caseline">
+    <span id="caseTitle"></span>
+    <span id="liarLine"></span>
+  </div>
+  <div id="caseIntro"></div>
+
+  <div id="board"></div>
+  <div id="stmts"></div>
+
+  <div id="actions">
+    <button class="btn danger" id="accuseBtn">체포하기</button>
+  </div>
+  <div id="hintline"></div>
+</div>
+
+<!-- 결과 -->
+<div class="ov hidden" id="resultOv"><div class="card" id="resultCard"></div></div>
+<!-- 도움말 -->
+<div class="ov hidden" id="helpOv"><div class="card" id="helpCard"></div></div>
+<!-- 타이틀 -->
+<div class="ov" id="titleOv"><div class="card" id="titleCard"></div></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   밸런싱 노브 — 여기만 만지면 됨
+   ═══════════════════════════════════════════════════════════ */
+const CONFIG = {
+  LIVES: 3,             // 체포 실패 가능 횟수
+  TOTAL_CASES: 10,      // 한 판의 길이. 이걸 다 풀면 완주
+  TIME_BUDGET: 46,      // 판 전체에 주어지는 수사 행동 횟수 (회복 없음)
+  PT_SOLVE: 100,        // 사건 해결 점수 × 사건 번호 × 인원 배율
+  // 한 번에 체포할 수 있는 인원과 그때의 점수 배율. 배열 길이 = 최대 인원.
+  // ※ 이게 이 게임의 중심축이다. 증언을 하나 덜 읽으면 후보가 거의 항상 2명 남으므로
+  //   (측정값: 84~96%), 1명 강제였을 때는 "덜 읽기 = 50% 동전 던지기"라 선택지가 아니었다.
+  //   2~3명 체포를 열어주면 그 절벽이 "점수를 깎고 시간을 산다"는 판단으로 바뀐다.
+  //
+  // ※ 시간은 사건마다 회복되지 않고 판 전체 예산 하나로 준다.
+  //   회복제(+4 고정)였을 때는 뒤 사건일수록 증언이 많아 구조적으로 파산했고,
+  //   측정해보니 전체 체포의 38~49%가 시간이 말라서 강제로 찍는 도박이었다.
+  //   회복량을 사건 크기에 연동해봐도 정수 노브로는 지배 전략(항상 3명)과
+  //   붕괴 사이가 안 잡혔다. 예산제로 바꾸니 도박이 "내가 초반에 과소비한 결과"가 된다.
+  //
+  // ※ 배수를 50/25로 두면 "항상 1명까지 좁히기"가 모든 예산에서 최고였다.
+  //   70/45로 완화하니 상위 전략들이 3% 안에 붙고 최고점은 섞어 쓴 쪽이 가져간다.
+  ARREST_MULT: [1, 0.7, 0.45],
+};
+
+// 사건 번호별 난이도. 없으면 마지막 줄이 계속 쓰인다.
+// ※ 거짓말 개수는 3 이상으로 올리지 말 것. 안 읽은 증언이 거짓을 흡수해버려서
+//    "증언 전부를 읽어야만 풀리는" 사건이 90% 넘게 나오고, 일찍 멈추는 판단이 사라진다.
+//    난이도는 용의자 수와 증언 수로 올린다.
+const STAGES = [
+  /* 1  */ {suspects:8,  stmts:4,  liars:1},
+  /* 2  */ {suspects:8,  stmts:5,  liars:1},
+  /* 3  */ {suspects:8,  stmts:6,  liars:1},
+  /* 4  */ {suspects:12, stmts:6,  liars:1},
+  /* 5  */ {suspects:12, stmts:7,  liars:1},
+  /* 6  */ {suspects:12, stmts:8,  liars:1},
+  /* 7  */ {suspects:16, stmts:8,  liars:1},
+  /* 8  */ {suspects:16, stmts:8,  liars:2},
+  /* 9  */ {suspects:16, stmts:9,  liars:2},
+  /* 10 */ {suspects:16, stmts:10, liars:2},
+];
+const stageCfg = n => STAGES[Math.min(n, STAGES.length) - 1];
+// 한 판의 증언을 전부 읽었을 때 드는 시간. 규칙 설명에서 예산과 비교해 보여준다.
+const TOTAL_STMTS = Array.from({length:CONFIG.TOTAL_CASES}, (_,i)=>stageCfg(i+1).stmts)
+                         .reduce((a,b)=>a+b, 0);
+
+/* ═══════════════════════════════════════════════════════════
+   데이터
+   ═══════════════════════════════════════════════════════════ */
+const COLORS = [
+  {id:'r', hex:'#e2504a', ko:'빨간색', en:'red'},
+  {id:'b', hex:'#4a8fe2', ko:'파란색', en:'blue'},
+  {id:'y', hex:'#e2c04a', ko:'노란색', en:'yellow'},
+  {id:'g', hex:'#4ab87a', ko:'초록색', en:'green'},
+];
+// 용의자를 도형으로 두니 몰입이 안 된다는 지적을 받아 소지품으로 바꿨다.
+// koJ 는 "우산을 / 가위를" 처럼 받침에 따라 갈리는 조사.
+const ITEMS = [
+  {id:'umbrella', ch:'☂', ko:'우산',   koJ:'을', en:'an umbrella'},
+  {id:'pen',      ch:'✎', ko:'만년필', koJ:'을', en:'a fountain pen'},
+  {id:'shears',   ch:'✂', ko:'가위',   koJ:'를', en:'a pair of shears'},
+  {id:'brooch',   ch:'✦', ko:'브로치', koJ:'를', en:'a brooch'},
+];
+const COLS = 4;
+
+// 용의자 이름 16개. 자리 라벨(A, B, C…) 대신 쓴다.
+const NAMES = [
+  {ko:'윤서린', en:'Seorin'}, {ko:'박정한', en:'Junghan'}, {ko:'최민경', en:'Minkyung'},
+  {ko:'하도진', en:'Dojin'},  {ko:'임세아', en:'Sea'},     {ko:'강태오', en:'Taeo'},
+  {ko:'노유진', en:'Yujin'},  {ko:'서기환', en:'Kihwan'},  {ko:'문해원', en:'Haewon'},
+  {ko:'조석우', en:'Seokwoo'},{ko:'백지완', en:'Jiwan'},   {ko:'구예린', en:'Yerin'},
+  {ko:'신동혁', en:'Donghyuk'},{ko:'오채린', en:'Chaerin'},{ko:'정무열', en:'Muyeol'},
+  {ko:'황선재', en:'Sunjae'},
+];
+
+// 사건 배경. 추리와는 무관한 분위기 문구다.
+const PLACES = [
+  {ko:'부두 창고',     en:'a dockside warehouse'},
+  {ko:'극장 분장실',   en:'a theatre dressing room'},
+  {ko:'기차 식당칸',   en:'a train dining car'},
+  {ko:'저택 서재',     en:'a manor study'},
+  {ko:'시계탑 계단',   en:'the clocktower stairs'},
+  {ko:'병원 뒷문',     en:'a hospital back door'},
+  {ko:'폐업한 사진관', en:'a shuttered photo studio'},
+  {ko:'항구 등대',     en:'the harbour lighthouse'},
+];
+
+/* ─── 언어 ─── */
+let LANG = 'ko';
+const T = {
+  // "조사 시간"은 시간이 아니라 행동 횟수인데 시간처럼 읽혀서 헷갈린다는 지적을 받아 이름을 바꿨다.
+  score:{ko:'해결',en:'SOLVED'}, time:{ko:'수사 행동',en:'ACTIONS'}, lives:{ko:'기회',en:'LIVES'},
+  points:{ko:'점수',en:'Score'},
+  caseN:{ko:(n,tot)=>`사건 ${n}/${tot}`, en:(n,tot)=>`Case ${n}/${tot}`},
+  liarLine:{ko:(k,n)=>`증언 ${n}개 중 <b>${k}개</b>가 거짓`,
+            en:(k,n)=>`<b>${k}</b> of ${n} testimonies ${k===1?'is a lie':'are lies'}`},
+  locked:{ko:'증언 듣기 (행동 1)', en:'Hear testimony (1 action)'},
+  caseIntro:{ko:p=>`${p}에서 시신이 발견됐다.`, en:p=>`A body was found in ${p}.`},
+  witness:{ko:i=>`증인 ${i}`, en:i=>`W${i}`},
+  accuse:{ko:'체포하기', en:'ARREST'},
+  cancel:{ko:'취소', en:'Cancel'},
+  pickWho:{ko:n=>`체포할 용의자를 고르세요 — 최대 ${n}명`, en:n=>`Choose who to arrest — up to ${n}`},
+  arrestBtn:{ko:(n,p)=>`체포 ${n}명 · 점수 ${p}%`, en:(n,p)=>`Arrest ${n} · ${p}% score`},
+  arrestNone:{ko:'체포 인원을 고르세요', en:'Select at least one'},
+  markHint:{ko:'용의자를 눌러 표시: 탈락 ✕ → 유력 ?', en:'Tap a suspect to mark: out ✕ → likely ?'},
+  maxPicked:{ko:n=>`최대 ${n}명까지만 체포할 수 있다`, en:n=>`You can arrest at most ${n}`},
+  arrested:{ko:n=>`체포 ${n}명`, en:n=>`Arrested ${n}`},
+  noTime:{ko:'남은 수사 행동이 없다. 지금 아는 것으로 체포해야 한다.', en:'No actions left. Arrest with what you have.'},
+  correct:{ko:'검거', en:'ARRESTED'},
+  wrong:{ko:'오인', en:'WRONG'},
+  wasCulprit:{ko:l=>`진범은 ${l}`, en:l=>`The culprit was ${l}`},
+  truth:{ko:'진실', en:'TRUE'}, lie:{ko:'거짓', en:'LIE'},
+  ptSolve:{ko:'사건 해결', en:'Case solved'},
+  ptMult:{ko:(n,p)=>`${n}명 체포 · 점수 ${p}%`, en:(n,p)=>`${n} arrested · ${p}% score`},
+  minRead:{ko:m=>`한 명으로 확정하려면 증언 ${m}개`, en:m=>`${m} testimonies to pin one`},
+  youRead:{ko:r=>`너는 ${r}개를 읽었다`, en:r=>`you read ${r}`},
+  lifeLost:{ko:'기회 -1', en:'Life -1'},
+  next:{ko:'다음 사건', en:'Next case'},
+  gameOver:{ko:'수사 종료', en:'CASE CLOSED'},
+  cleared:{ko:'수사 완료', en:'ALL CASES CLOSED'},
+  busted:{ko:'수사 중단', en:'INVESTIGATION HALTED'},
+  best:{ko:'최고 기록', en:'Best'},
+  retry:{ko:'다시 수사', en:'New investigation'},
+  solvedN:{ko:(s,tot)=>`${tot}건 중 ${s}건 해결`, en:(s,tot)=>`${s} of ${tot} solved`},
+  timeLeftEnd:{ko:t=>`남은 행동 ${t}`, en:t=>`${t} actions left`},
+  title:{ko:'증언', en:'TESTIMONY'},
+  subtitle:{ko:'거짓말하는 증인이 섞여 있다', en:'Some witnesses are lying'},
+  start:{ko:'수사 시작', en:'START'},
+  howto:{ko:'규칙', en:'How to play'},
+  close:{ko:'닫기', en:'Close'},
+  rules:{ko:[
+    '용의자 중 <b>범인은 정확히 한 명</b>이다.',
+    '증인들이 범인에 대해 증언한다. 그중 <b>정확히 몇 개가 거짓인지</b>는 알려준다. 누가 거짓말쟁이인지는 안 알려준다.',
+    `한 판은 사건 ${CONFIG.TOTAL_CASES}개다. 증언 하나를 들으려면 <b>수사 행동 1</b>이 드는데, <b>판 전체에 ${CONFIG.TIME_BUDGET}번밖에 없고 회복되지 않는다.</b> 증언을 다 들으려면 ${TOTAL_STMTS}번이 필요하니, 어느 사건에 몰아줄지 정해야 한다.`,
+    '<b>아직 안 읽은 증언에도 거짓이 숨어 있다.</b> 읽은 것이 전부 참처럼 보여도, 거짓은 안 읽은 쪽에 있을 수 있다.',
+    `<b>체포는 최대 ${CONFIG.ARREST_MULT.length}명까지 한꺼번에 할 수 있다.</b> 범인이 명단 안에 있으면 성공. 대신 인원이 늘수록 점수가 깎인다 — ${CONFIG.ARREST_MULT.map((m,i)=>`${i+1}명 ${Math.round(m*100)}%`).join(', ')}.`,
+    '그래서 증언을 다 들을 필요가 없다. <b>후보를 2명까지만 좁히고 둘 다 잡으면 확실히 성공한다.</b> 점수를 깎아서 시간을 사는 셈이다.',
+    '범인이 명단에 없으면 기회가 하나 줄어든다. 세 번 실패하면 끝.',
+  ], en:[
+    'Exactly <b>one</b> suspect is guilty.',
+    'Witnesses testify about the culprit. You are told <b>how many of them lie</b> — never which ones.',
+    `A run is ${CONFIG.TOTAL_CASES} cases. Hearing a testimony costs <b>1 action</b>, and <b>you get ${CONFIG.TIME_BUDGET} for the whole run — they never refill.</b> Hearing every testimony would take ${TOTAL_STMTS}, so you must choose where to spend them.`,
+    '<b>Unread testimonies can hold the lies too.</b> Even if everything you read looks true, the lies may be hiding in what you skipped.',
+    `<b>You may arrest up to ${CONFIG.ARREST_MULT.length} suspects at once.</b> Success if the culprit is among them — but more names means less score: ${CONFIG.ARREST_MULT.map((m,i)=>`${i+1} = ${Math.round(m*100)}%`).join(', ')}.`,
+    'So you never have to read everything. <b>Narrow it to 2 and take them both — that is a guaranteed catch.</b> You are trading score for time.',
+    'If the culprit is not on your list, you lose a life. Three failures ends the investigation.',
+  ]},
+};
+function t(k, ...a){ const v = T[k][LANG]; return typeof v === 'function' ? v(...a) : v; }
+
+/* ═══════════════════════════════════════════════════════════
+   술어 (증언의 내용)
+   ═══════════════════════════════════════════════════════════ */
+function makePredicates(sus, rows){
+  const P = [];
+  const add = (key, test, ko, en) => P.push({key, test, ko, en});
+  COLORS.forEach(c=>{
+    add('c+'+c.id, s=>s.color.id===c.id, `범인은 ${c.ko} 옷을 입고 있었다.`, `The culprit wore ${c.en}.`);
+    add('c-'+c.id, s=>s.color.id!==c.id, `범인은 ${c.ko} 옷이 아니었다.`,   `The culprit did not wear ${c.en}.`);
+  });
+  ITEMS.forEach(y=>{
+    add('s+'+y.id, s=>s.item.id===y.id, `범인은 ${y.ko}${y.koJ} 들고 있었다.`,     `The culprit was carrying ${y.en}.`);
+    add('s-'+y.id, s=>s.item.id!==y.id, `범인은 ${y.ko}${y.koJ} 들고 있지 않았다.`, `The culprit was not carrying ${y.en}.`);
+  });
+  add('pL', s=>s.col < COLS/2, '범인은 왼쪽 통로 쪽에 있었다.', 'The culprit was on the left side.');
+  add('pR', s=>s.col >= COLS/2, '범인은 오른쪽 통로 쪽에 있었다.', 'The culprit was on the right side.');
+  for(let r=0;r<rows;r++){
+    add('r+'+r, s=>s.row===r, `범인은 ${r+1}번째 줄에 서 있었다.`, `The culprit stood in row ${r+1}.`);
+    add('r-'+r, s=>s.row!==r, `범인은 ${r+1}번째 줄이 아니었다.`,  `The culprit was not in row ${r+1}.`);
+  }
+  // 자명한 술어 제거: 모두 참이거나 모두 거짓이면 정보가 없다
+  return P.filter(p=>{ const n = sus.filter(p.test).length; return n>0 && n<sus.length; });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   사건 생성
+   ═══════════════════════════════════════════════════════════ */
+const rnd = n => Math.floor(Math.random()*n);
+const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]];} return a; };
+
+function buildSuspects(n){
+  const pairs = [];
+  COLORS.forEach(c=>ITEMS.forEach(y=>pairs.push({color:c, item:y})));
+  const picked = shuffle(pairs).slice(0, n);
+  const names = shuffle(NAMES.slice());
+  return picked.map((p,i)=>({...p, idx:i, row:Math.floor(i/COLS), col:i%COLS, name:names[i]}));
+}
+
+// 부분 정보로 s가 아직 가능한가?  거짓 개수 ≤ K,  참 개수 ≤ N-K
+function stillPossible(s, opened, stmts, K){
+  let f=0, tr=0;
+  opened.forEach(i=>{ stmts[i].pred.test(s) ? tr++ : f++; });
+  return f <= K && tr <= stmts.length - K;
+}
+function possibleSet(sus, openedIdx, stmts, K){
+  return sus.filter(s=>stillPossible(s, openedIdx, stmts, K));
+}
+// 유일하게 좁혀지는 가장 작은 증언 묶음의 크기
+function minReadCount(sus, stmts, K){
+  const N = stmts.length;
+  let best = N;
+  for(let mask=0; mask<(1<<N); mask++){
+    const size = mask.toString(2).replace(/0/g,'').length;
+    if(size >= best) continue;
+    const opened = []; for(let i=0;i<N;i++) if(mask & (1<<i)) opened.push(i);
+    if(possibleSet(sus, opened, stmts, K).length === 1) best = size;
+  }
+  return best;
+}
+
+function generateCase(caseNo){
+  const cfg = stageCfg(caseNo);
+  for(let attempt=0; attempt<400; attempt++){
+    const sus  = buildSuspects(cfg.suspects);
+    const rows = Math.ceil(cfg.suspects/COLS);
+    const pool = makePredicates(sus, rows);
+    const culprit = sus[rnd(sus.length)];
+
+    const truePool  = shuffle(pool.filter(p=>p.test(culprit)));
+    const falsePool = shuffle(pool.filter(p=>!p.test(culprit)));
+    const nTrue = cfg.stmts - cfg.liars;
+    if(truePool.length < nTrue || falsePool.length < cfg.liars) continue;
+
+    const chosen = [], used = new Set();
+    const take = (arr, n) => {
+      let got = 0;
+      for(const p of arr){
+        if(got >= n) break;
+        // 같은 술어, 그리고 정반대 술어는 한 번씩만
+        const base = p.key.slice(0,1) + p.key.slice(2);
+        if(used.has(base)) continue;
+        used.add(base); chosen.push(p); got++;
+      }
+      return got === n;
+    };
+    if(!take(truePool, nTrue) || !take(falsePool, cfg.liars)) continue;
+
+    const stmts = shuffle(chosen).map((p,i)=>({pred:p, truth:p.test(culprit), who:i+1}));
+    // 정확히 K개가 거짓이라는 조건을 만족하는 용의자가 진범 하나뿐이어야 한다
+    const all = stmts.map((_,i)=>i);
+    const sols = possibleSet(sus, all, stmts, cfg.liars);
+    if(sols.length !== 1) continue;
+
+    const minRead = minReadCount(sus, stmts, cfg.liars);
+    if(minRead < 2) continue;   // 증언 하나로 끝나면 추리가 아니다
+
+    return {sus, stmts, culprit, liars:cfg.liars, minRead, caseNo,
+            place: PLACES[rnd(PLACES.length)]};
+  }
+  return generateCase(1); // 이론상 도달 불가
+}
+
+/* ═══════════════════════════════════════════════════════════
+   게임 상태
+   ═══════════════════════════════════════════════════════════ */
+let G = null;
+function newGame(){
+  G = { caseNo:1, score:0, time:CONFIG.TIME_BUDGET, lives:CONFIG.LIVES, solved:0,
+        cur:null, opened:[], marks:{}, accusing:false, picks:[], over:false };
+  loadCase();
+}
+function loadCase(){
+  G.cur = generateCase(G.caseNo);
+  G.opened = []; G.marks = {}; G.accusing = false; G.picks = [];
+  render();
+}
+const MAX_ARREST = CONFIG.ARREST_MULT.length;
+const multFor = n => CONFIG.ARREST_MULT[n-1] || 0;
+
+/* ─── 소리 ─── */
+let AC = null;
+function beep(freq, dur=0.09, type='sine', vol=0.05){
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime+dur);
+    o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime+dur);
+  }catch(e){}
+}
+
+/* ═══════════════════════════════════════════════════════════
+   렌더
+   ═══════════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+
+function render(){
+  const c = G.cur;
+  $('score').textContent = `${G.solved}/${CONFIG.TOTAL_CASES}`;
+  $('time').textContent  = G.time;
+  $('time').className = 'hud-val' + (G.time <= 5 ? ' low' : '');
+  $('lives').textContent = '●'.repeat(G.lives) + '○'.repeat(CONFIG.LIVES - G.lives);
+  $('caseTitle').textContent = t('caseN', c.caseNo, CONFIG.TOTAL_CASES);
+  $('liarLine').innerHTML = t('liarLine', c.liars, c.stmts.length);
+  $('caseIntro').textContent = t('caseIntro', c.place[LANG]);
+
+  // 보드
+  const b = $('board');
+  b.className = G.accusing ? 'accusing' : '';
+  b.innerHTML = '';
+  c.sus.forEach(s=>{
+    const el = document.createElement('div');
+    const m = G.marks[s.idx];
+    const picked = G.picks.includes(s.idx);
+    el.className = 'sus' + (picked ? ' picked' : m==='out' ? ' out' : m==='hot' ? ' hot' : '');
+    el.innerHTML = `<span class="tag">${s.name[LANG]}</span>
+      <span class="sym" style="color:${s.color.hex}">${s.item.ch}</span>
+      <span class="mark">${picked?'✓':m==='out'?'✕':m==='hot'?'?':''}</span>`;
+    el.onclick = ()=>onSuspect(s);
+    b.appendChild(el);
+  });
+
+  // 증언
+  const sl = $('stmts');
+  sl.innerHTML = '';
+  c.stmts.forEach((st, i)=>{
+    const open = G.opened.includes(i);
+    const el = document.createElement('div');
+    el.className = 'stmt' + (open ? '' : ' locked');
+    el.innerHTML = `<span class="who">${t('witness', st.who)}</span>
+      <span class="txt">${open ? st.pred[LANG] : t('locked')}</span>`;
+    if(!open) el.onclick = ()=>openStmt(i);
+    sl.appendChild(el);
+  });
+
+  // 액션
+  const a = $('actions');
+  a.innerHTML = '';
+  if(G.accusing){
+    const n = G.picks.length;
+    const no = mkBtn(t('cancel'), 'btn', ()=>{ G.accusing=false; G.picks=[]; render(); });
+    const pct = Math.round(multFor(n)*100);
+    const go = mkBtn(n ? t('arrestBtn', n, pct) : t('arrestNone'), 'btn' + (n?' danger':''),
+                     ()=>{ if(n) doArrest(); });
+    if(!n) go.style.opacity = .45;
+    a.append(no, go);
+    $('hintline').textContent = G.picks.length
+      ? c.sus.filter(s=>G.picks.includes(s.idx)).map(s=>s.name[LANG]).join(', ')
+      : t('pickWho', MAX_ARREST);
+  }else{
+    a.append(mkBtn(t('accuse'), 'btn danger', ()=>{ G.accusing=true; render(); }));
+    $('hintline').textContent = G.time <= 0 ? t('noTime') : t('markHint');
+  }
+  $('langBtn').textContent = LANG === 'ko' ? 'EN' : '한';
+  document.querySelectorAll('[data-t]').forEach(e=> e.textContent = t(e.dataset.t));
+}
+function mkBtn(label, cls, fn){
+  const b = document.createElement('button');
+  b.className = cls; b.textContent = label; b.onclick = fn; return b;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   입력
+   ═══════════════════════════════════════════════════════════ */
+function openStmt(i){
+  if(G.accusing || G.time <= 0){ beep(180,.08,'square'); return; }
+  G.opened.push(i);
+  G.time--;
+  beep(520 + G.opened.length*40, .07, 'triangle');
+  render();
+}
+function onSuspect(s){
+  if(G.accusing){
+    const at = G.picks.indexOf(s.idx);
+    if(at >= 0){ G.picks.splice(at,1); beep(260,.05,'square'); }
+    else if(G.picks.length >= MAX_ARREST){
+      beep(160,.1,'square'); $('hintline').textContent = t('maxPicked', MAX_ARREST); return;
+    }
+    else { G.picks.push(s.idx); beep(340,.06,'square'); }
+    render(); return;
+  }
+  const cur = G.marks[s.idx];
+  G.marks[s.idx] = cur === undefined ? 'out' : cur === 'out' ? 'hot' : undefined;
+  beep(cur === undefined ? 330 : 440, .04, 'sine', .03);
+  render();
+}
+
+function doArrest(){
+  const c = G.cur;
+  const n = G.picks.length;
+  const right = G.picks.includes(c.culprit.idx);
+  const lines = [];
+  if(right){
+    const mult = multFor(n);
+    const solve = Math.round(CONFIG.PT_SOLVE * c.caseNo * mult);
+    lines.push([t('ptSolve'), '+'+solve]);
+    if(n > 1) lines.push([t('ptMult', n, Math.round(mult*100)), '']);
+    G.score += solve;
+    G.solved++;
+    beep(660,.1); setTimeout(()=>beep(880,.14), 90);
+  }else{
+    G.lives--;
+    lines.push([t('arrested', n), '']);
+    lines.push([t('lifeLost'), '']);
+    beep(200,.18,'sawtooth'); setTimeout(()=>beep(140,.25,'sawtooth'), 120);
+  }
+  G.accusing = false;
+  showResult(right, lines);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   결과 / 종료 화면
+   ═══════════════════════════════════════════════════════════ */
+function showResult(right, lines){
+  const c = G.cur;
+  const dead = G.lives <= 0;
+  const picked = c.sus.filter(s=>G.picks.includes(s.idx)).map(s=>s.name[LANG]).join(', ');
+  const stmtRows = c.stmts.map(st=>
+    `<div class="stmt ${G.opened.includes(st.who-1)?'':'dim'}">
+       <span class="who">${t('witness', st.who)}</span>
+       <span class="txt">${st.pred[LANG]}</span>
+       <span class="badge ${st.truth?'t':'f'}">${st.truth?t('truth'):t('lie')}</span>
+     </div>`).join('');
+
+  $('resultCard').innerHTML = `
+    <h2 style="color:${right?'var(--good)':'var(--bad)'}">${right?t('correct'):t('wrong')}</h2>
+    <p>${t('wasCulprit', c.culprit.name[LANG])} <span style="color:${c.culprit.color.hex};font-size:18px">${c.culprit.item.ch}</span>
+       &nbsp;—&nbsp; ${t('arrested', G.picks.length)}: <b>${picked}</b></p>
+    <h3>${t('minRead', c.minRead)} · ${t('youRead', G.opened.length)}</h3>
+    <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">${stmtRows}</div>
+    <h3>&nbsp;</h3>
+    ${lines.map(([k,v])=>`<div class="scoreline"><span>${k}</span><span class="v plus">${v}</span></div>`).join('')}
+    <div class="scoreline total"><span>${t('score')}</span><span>${G.score.toLocaleString()}</span></div>
+    <div style="margin-top:16px"></div>`;
+  // 성공이든 실패든 다음 사건으로 넘어간다. 판은 사건을 다 쓰거나 기회가 떨어지면 끝.
+  const end = dead || G.caseNo >= CONFIG.TOTAL_CASES;
+  const btn = mkBtn(end ? t('gameOver') : t('next'), 'btn primary', ()=>{
+    $('resultOv').classList.add('hidden');
+    if(end) showGameOver(dead);
+    else { G.caseNo++; loadCase(); }
+  });
+  $('resultCard').appendChild(btn);
+  $('resultOv').classList.remove('hidden');
+}
+
+function showGameOver(busted){
+  const best = Math.max(G.score, +(localStorage.getItem('testimony_best')||0));
+  localStorage.setItem('testimony_best', best);
+  $('resultCard').innerHTML = `
+    <h2 style="color:${busted?'var(--bad)':'var(--good)'}">${busted ? t('busted') : t('cleared')}</h2>
+    <div class="big">${t('solvedN', G.solved, CONFIG.TOTAL_CASES)}</div>
+    <p style="text-align:center">${t('points')} ${G.score.toLocaleString()} · ${t('timeLeftEnd', G.time)}</p>
+    <p style="text-align:center">${t('best')} ${best.toLocaleString()}</p>
+    <div style="margin-top:16px"></div>`;
+  $('resultCard').appendChild(mkBtn(t('retry'), 'btn primary', ()=>{
+    $('resultOv').classList.add('hidden'); newGame();
+  }));
+  $('resultOv').classList.remove('hidden');
+}
+
+/* ─── 도움말 / 타이틀 ─── */
+function showHelp(){
+  $('helpCard').innerHTML = `<h2>${t('howto')}</h2>
+    <ul class="rules">${t('rules').map(r=>`<li>${r}</li>`).join('')}</ul>
+    <div style="margin-top:12px"></div>`;
+  $('helpCard').appendChild(mkBtn(t('close'), 'btn', ()=>$('helpOv').classList.add('hidden')));
+  $('helpOv').classList.remove('hidden');
+}
+function showTitle(){
+  const best = +(localStorage.getItem('testimony_best')||0);
+  $('titleCard').innerHTML = `
+    <h2 style="font-size:30px;letter-spacing:.1em">${t('title')}</h2>
+    <p style="margin-bottom:14px">${t('subtitle')}</p>
+    <ul class="rules">${t('rules').map(r=>`<li>${r}</li>`).join('')}</ul>
+    ${best?`<p style="text-align:center;margin-top:10px">${t('best')} ${best.toLocaleString()}</p>`:''}
+    <div style="margin-top:14px"></div>`;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px';
+  row.append(
+    mkBtn(LANG==='ko'?'EN':'한', 'btn', ()=>{ LANG = LANG==='ko'?'en':'ko'; showTitle(); }),
+    mkBtn(t('start'), 'btn primary', ()=>{ $('titleOv').classList.add('hidden'); newGame(); })
+  );
+  row.children[0].style.flex = '0 0 60px';
+  $('titleCard').appendChild(row);
+  $('titleOv').classList.remove('hidden');
+}
+
+$('helpBtn').onclick = showHelp;
+$('langBtn').onclick = ()=>{ LANG = LANG==='ko'?'en':'ko'; render(); };
+document.documentElement.lang = LANG;
+
+showTitle();
+</script>
+</body>
+</html>
