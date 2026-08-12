@@ -38,6 +38,8 @@
   /* ── 사건 머리말 ── */
   #brief{border-left:3px solid var(--acc); padding:2px 0 2px 11px; margin-bottom:14px;}
   #caseNo{font-size:11px; color:var(--tx2); letter-spacing:.1em;}
+  .step{margin-left:9px; padding:2px 8px; border-radius:5px; letter-spacing:.04em;
+    background:var(--acc); color:#1a1611; font-weight:700;}
   #intro{font-size:14.5px; line-height:1.5; margin-top:3px;}
   #rule{font-size:13px; color:var(--acc); margin-top:6px; line-height:1.5;}
 
@@ -148,7 +150,13 @@ const CONFIG = {
   //   추리를 포기하고 찍게 되는데, 그건 이 게임에서 제일 피하려던 상태다.
   //   플레이테스트에서 시간에 쫓겨 찍는다는 말이 나오면 PER_PERSON 부터 올릴 것.
   TIME_BASE: 30,
-  TIME_PER_PERSON: 15,
+  TIME_PER_PERSON: 20,
+
+  // 2단계는 시계를 새로 준다.
+  // ※ 1단계에서 오래 고민했다고 범인 지목에서 시간이 말라버리면, 어려운 부분을 다 풀고
+  //   쉬운 부분에서 죽는 셈이라 제일 억울하다. 실제로 플레이테스트에서 그렇게 끊겼다.
+  TIME_PHASE2_BASE: 20,
+  TIME_PHASE2_PER_LIAR: 20,
 };
 
 // 사건별 난이도. people = 용의자 수, extraLiars = 결백한데 거짓말하는 사람 수.
@@ -270,13 +278,18 @@ const T = {
   caseNo:{ko:(n,tot)=>`사건 ${n} / ${tot}`, en:(n,tot)=>`CASE ${n} / ${tot}`},
   intro:{ko:(p,n)=>`${p}에서 시신이 발견됐다. 그 자리에 있던 ${n}명을 불러 한마디씩 들었다.`,
          en:(p,n)=>`A body was found at ${p}. The ${n} people who were there each said one thing.`},
-  ruleOne:{ko:'이 중 <b>1명</b>이 거짓말을 하고 있다. 그 사람이 범인이다.',
-           en:'<b>One</b> of them is lying. That one is the culprit.'},
-  ruleMany:{ko:k=>`이 중 <b>${k}명</b>이 거짓말을 하고 있다. <b>${k}명을 모두</b> 찾아라. 범인은 그중 하나다.`,
-            en:k=>`<b>${k}</b> of them are lying. Find <b>every one</b>. The culprit is among them.`},
+  // ※ 진술은 전부 "범인"에 대해 말하는데 답하라는 건 "거짓말"이라 프레임이 어긋난다는
+  //   지적을 받았다. 그래서 질문을 앞세워 쓴다 — 지금 묻는 건 거짓말이라는 걸 먼저.
+  ruleOne:{ko:'이 중 <b>거짓말을 하는 사람은 1명</b>뿐이다. 그 사람이 범인이다.',
+           en:'Exactly <b>one of them is lying</b>. That one is the culprit.'},
+  ruleMany:{ko:k=>`먼저 <b>거짓말을 하고 있는 ${k}명</b>을 가려내라. 범인이 누구인지는 그다음에 묻는다.`,
+            en:k=>`First work out <b>which ${k} are lying</b>. Who did it comes after.`},
+  stepOne:{ko:'1단계 · 거짓말 가려내기', en:'STEP 1 · WHO IS LYING'},
+  stepTwo:{ko:'2단계 · 범인 지목',       en:'STEP 2 · NAME THE CULPRIT'},
   submitReady:{ko:k=>`이 ${k}명으로 확정`, en:k=>`Name these ${k}`},
   submitCount:{ko:(cur,k)=>`거짓말쟁이 ${k}명을 고르세요 (${cur}/${k})`, en:(cur,k)=>`Choose ${k} liars (${cur}/${k})`},
-  markHint:{ko:'눌러서 표시: 거짓말 ✓ → 결백 ✕', en:'Tap to mark: lying ✓ → cleared ✕'},
+  // 표시 라벨도 죄가 아니라 거짓말 기준으로 맞춘다 ("결백"은 죄에 대한 말이라 프레임이 섞였다)
+  markHint:{ko:'눌러서 표시: 거짓말 ✓ → 진실 ✕', en:'Tap to mark: lying ✓ → truthful ✕'},
   right:{ko:'검거', en:'CASE CLOSED'},
   wrong:{ko:'오인', en:'WRONG'},
   wasCulprit:{ko:n=>`범인은 ${iEotDa(n)}다.`, en:n=>`The culprit was ${n}.`},
@@ -614,7 +627,8 @@ function render(){
   const c = G.cur;
   $('solved').textContent = `${G.solved}/${CONFIG.TOTAL_CASES}`;
   $('lives').textContent  = '●'.repeat(G.lives) + '○'.repeat(CONFIG.LIVES - G.lives);
-  $('caseNo').textContent = t('caseNo', c.caseNo, CONFIG.TOTAL_CASES);
+  $('caseNo').innerHTML = `${t('caseNo', c.caseNo, CONFIG.TOTAL_CASES)}` +
+    (liarCount() > 1 ? `<span class="step">${G.phase === 2 ? t('stepTwo') : t('stepOne')}</span>` : '');
   drawClock();
   $('intro').textContent  = t('intro', c.place[LANG], c.people.length);
   $('rule').innerHTML = G.phase === 2 ? t('phase2Rule')
@@ -710,7 +724,10 @@ function doSubmit(){
   beep(520,.09); setTimeout(()=>beep(700,.11), 80);
   // 거짓말쟁이가 한 명뿐이면 그 사람이 곧 범인이라 2단계가 없다
   if(liarCount() === 1){ G.solved++; return showResult(true); }
-  G.phase = 2; G.culpritPick = null; render();
+  G.phase = 2; G.culpritPick = null;
+  G.timeLeft = CONFIG.TIME_PHASE2_BASE + CONFIG.TIME_PHASE2_PER_LIAR * liarCount();
+  render();
+  startTimer();
 }
 
 function doNameCulprit(){
