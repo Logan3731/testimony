@@ -64,14 +64,10 @@
 
   .p.out{opacity:.4;}
   .p.out .pmark{color:var(--bad);}
-  .p.hot{border-left-color:var(--acc);}
-  .p.hot .pmark{color:var(--acc);}
-  #people.accusing .p{border-color:#5c3129;}
-  #people.accusing .p:hover{border-color:var(--bad); background:var(--panel2);}
+  .p:hover{border-color:var(--tx2);}
   .p.picked{border-color:var(--bad)!important; border-left-color:var(--bad)!important;
     background:#2c1a17; opacity:1;}
   .p.picked .pmark{color:var(--bad);}
-  .p.guilty{border-color:var(--bad)!important; border-left-color:var(--bad)!important;}
 
   /* 결과 화면에서 진실/거짓 표시 */
   .verdict{font-size:11px; font-weight:700; padding:2px 7px; border-radius:5px; margin-left:7px;
@@ -210,6 +206,19 @@ const SPOTS = [
   {ko:'바깥 골목',  en:'the alley outside'},
 ];
 
+// 결백한데도 거짓말한 사람이 숨기고 있던 것. 최후의 발언에서 밝혀진다.
+// 이게 없으면 "결백한데 왜 거짓말을 하지?"라는 구멍이 남는다.
+const SECRETS = [
+  {ko:'도박빚을 숨기려고 그랬다',            en:'I was hiding my gambling debts'},
+  {ko:'그날 밤 만나던 사람을 숨기려고 그랬다', en:'I was hiding who I was seeing that night'},
+  {ko:'가게 물건에 손을 댄 걸 숨기려고 그랬다', en:'I had been stealing from the shop'},
+  {ko:'전과가 있다는 걸 숨기려고 그랬다',     en:'I have a record I did not want dug up'},
+  {ko:'몰래 이사를 준비하던 걸 숨기려고 그랬다', en:'I was quietly packing to leave town'},
+  {ko:'약을 훔쳐 쓰던 걸 숨기려고 그랬다',    en:'I had been taking medicine that was not mine'},
+  {ko:'남의 편지를 뜯어본 걸 숨기려고 그랬다', en:'I had opened letters that were not mine'},
+  {ko:'가짜 서류를 만든 걸 숨기려고 그랬다',  en:'I had forged some papers'},
+];
+
 // 피해자와의 관계. 전원이 하나씩 갖는다 — 누구 하나를 가리키는 단서가 아니라
 // "여기 있는 전부에게 이유가 있었다"는 배경이다. 추리에는 관여하지 않는다.
 const MOTIVES = [
@@ -258,19 +267,21 @@ const T = {
   caseNo:{ko:(n,tot)=>`사건 ${n} / ${tot}`, en:(n,tot)=>`CASE ${n} / ${tot}`},
   intro:{ko:(p,n)=>`${p}에서 시신이 발견됐다. 그 자리에 있던 ${n}명을 불러 한마디씩 들었다.`,
          en:(p,n)=>`A body was found at ${p}. The ${n} people who were there each said one thing.`},
-  ruleNoExtra:{ko:'범인은 거짓말을 한다. 나머지는 모두 진실을 말했다.',
-               en:'The culprit lies. Everyone else told the truth.'},
-  ruleExtra:{ko:k=>`범인은 거짓말을 한다. 그리고 결백한 사람 중 <b>${k}명</b>도 거짓말을 하고 있다.`,
-             en:k=>`The culprit lies. And <b>${k}</b> innocent ${k===1?'person is':'people are'} lying too.`},
-  accuse:{ko:'지목하기', en:'ACCUSE'},
-  cancel:{ko:'취소', en:'Cancel'},
-  pickWho:{ko:'범인이라고 생각하는 사람을 누르세요', en:'Tap the one you believe is guilty'},
-  confirmBtn:{ko:n=>`${eunNeun(n)} 범인이다`, en:n=>`${n} did it`},
-  markHint:{ko:'눌러서 표시: 아니다 ✕ → 의심 ?', en:'Tap to mark: cleared ✕ → suspect ?'},
-  right:{ko:'검거', en:'ARRESTED'},
+  ruleOne:{ko:'이 중 <b>1명</b>이 거짓말을 하고 있다. 그 사람이 범인이다.',
+           en:'<b>One</b> of them is lying. That one is the culprit.'},
+  ruleMany:{ko:k=>`이 중 <b>${k}명</b>이 거짓말을 하고 있다. <b>${k}명을 모두</b> 찾아라. 범인은 그중 하나다.`,
+            en:k=>`<b>${k}</b> of them are lying. Find <b>every one</b>. The culprit is among them.`},
+  submitReady:{ko:k=>`이 ${k}명으로 확정`, en:k=>`Name these ${k}`},
+  submitCount:{ko:(cur,k)=>`거짓말쟁이 ${k}명을 고르세요 (${cur}/${k})`, en:(cur,k)=>`Choose ${k} liars (${cur}/${k})`},
+  markHint:{ko:'눌러서 표시: 거짓말 ✓ → 결백 ✕', en:'Tap to mark: lying ✓ → cleared ✕'},
+  right:{ko:'검거', en:'CASE CLOSED'},
   wrong:{ko:'오인', en:'WRONG'},
   wasCulprit:{ko:n=>`범인은 ${iEotDa(n)}다.`, en:n=>`The culprit was ${n}.`},
-  youSaid:{ko:n=>`너는 ${eulReul(n)} 지목했다.`, en:n=>`You accused ${n}.`},
+  missed:{ko:'거짓말을 한 사람을 제대로 짚지 못했다.', en:'You did not name the liars correctly.'},
+  lastWords:{ko:'최후의 발언', en:'LAST WORDS'},
+  allSaid:{ko:'모두가 한 말', en:'WHAT EVERYONE SAID'},
+  confess:{ko:s=>`“${s}. 하지만 사람을 죽이진 않았다.”`, en:s=>`“${s}. But I did not kill anyone.”`},
+  culpritLine:{ko:'“…그래. 내가 그랬다.”', en:'“…Fine. It was me.”'},
   truth:{ko:'진실', en:'TRUE'}, lie:{ko:'거짓', en:'LIE'},
   next:{ko:'다음 사건', en:'Next case'},
   finish:{ko:'수사 종료', en:'Finish'},
@@ -287,22 +298,24 @@ const T = {
   rules:{ko:[
     '한 사건에 <b>범인은 정확히 한 명</b>이다.',
     '용의자들이 각자 한마디씩 한다. <b>범인이 한 말은 반드시 거짓이다.</b>',
-    '결백한 사람 중에도 거짓말하는 사람이 섞이는 사건이 있다. <b>몇 명인지는 사건마다 알려준다.</b> 누구인지는 안 알려준다.',
+    '결백한 사람 중에도 거짓말하는 사람이 섞인다. 돈 문제든 뭐든, 숨기고 싶은 게 따로 있는 사람들이다.',
+    '네가 지목하는 건 범인이 아니라 <b>거짓말을 하고 있는 사람 전원</b>이다. 몇 명인지는 사건마다 알려준다. <b>범인은 그중 하나이고, 누구인지는 최후의 발언에서 드러난다.</b>',
     '각자 자기가 어디서 무엇을 봤는지까지 말한다. <b>참·거짓을 따지는 건 굵게 표시된 주장뿐이다.</b> 앞의 이야기는 그가 왜 그렇게 말하는지일 뿐, 따로 검증할 필요는 없다.',
     '"저 사람은 거짓말을 하고 있다" 같은 주장도 나온다. 그 주장 자체의 참·거짓도 따져야 한다.',
     '피해자와의 관계는 <b>전원이 하나씩</b> 갖고 있다. 여기 있는 누구에게나 이유가 있었다는 뜻이지, 범인을 가리키는 단서는 아니다.',
     '진술은 처음부터 전부 보인다. <b>숨겨진 정보도, 찍어야 하는 상황도 없다.</b> 앞뒤가 맞는 답은 언제나 하나뿐이다.',
-    '틀리게 지목하면 기회가 하나 줄어든다. 세 번 틀리면 수사가 중단된다.',
+    '한 명이라도 잘못 짚으면 기회가 하나 줄어든다. 세 번 틀리면 수사가 중단된다.',
     '<b>사건마다 제한시간이 있다.</b> 용의자를 붙잡아 둘 수 있는 시간이고, 넘기면 그 사건은 놓친 것으로 기회가 하나 줄어든다. 인원이 많은 사건일수록 시간도 길다.',
   ], en:[
     'Exactly <b>one</b> suspect is guilty.',
     'Each suspect says one thing. <b>Whatever the culprit says is false.</b>',
-    'In some cases innocent people lie too. <b>You are told how many</b> — never which ones.',
+    'Innocent people lie too — they have something else to hide.',
+    'What you name is not the culprit but <b>everyone who is lying</b>. You are told how many. <b>The culprit is one of them, revealed in their last words.</b>',
     'Each also says where they were and what they saw. <b>Only the claim in bold is judged true or false.</b> The rest explains why they say it — you do not need to verify it separately.',
     'Claims like "he is lying" also appear. You must judge whether that claim itself holds.',
     '<b>Every</b> suspect has a connection to the victim. It means everyone here had a reason — it is not a clue to the culprit.',
     'Every statement is visible from the start. <b>Nothing is hidden and you never have to guess.</b> Exactly one answer fits all of it.',
-    'A wrong accusation costs a life. Three and the investigation ends.',
+    'Get even one name wrong and it costs a life. Three and the investigation ends.',
     '<b>Each case is on the clock</b> — that is how long you can hold the suspects. Run out and the case is lost, costing a life. Bigger cases get more time.',
   ]},
 };
@@ -472,10 +485,12 @@ function generateCase(caseNo){
 
     const cast    = shuffle(CAST.slice()).slice(0, n);
     const motives = shuffle(MOTIVES.slice());
+    const secrets = shuffle(SECRETS.slice());
     const spots   = shuffle(SPOTS.map((_,i)=>i));
     const people = cast.map((c,i)=>({
       idx:i, name:{ko:c.ko, en:c.en}, job:{ko:c.jko, en:c.jen},
       motive: motives[i % motives.length],
+      secret: secrets[i % secrets.length],   // 결백한 거짓말쟁이일 때만 쓰인다
       face:FACE_COLORS[i % FACE_COLORS.length],
     }));
     // 진술자마다 있던 자리를 하나씩 준다. 그 자리가 "그걸 어떻게 아는지"의 근거가 된다.
@@ -490,13 +505,16 @@ function generateCase(caseNo){
    ═══════════════════════════════════════════════════════════ */
 let G = null;
 function newGame(){
-  G = {caseNo:1, solved:0, lives:CONFIG.LIVES, cur:null, marks:{}, accusing:false, pick:null};
+  G = {caseNo:1, solved:0, lives:CONFIG.LIVES, cur:null, marks:{}};
   loadCase();
 }
+// 이번 사건에서 골라야 하는 거짓말쟁이 수 (범인 포함)
+const liarCount = () => G.cur.extraLiars + 1;
+const chosen = () => Object.keys(G.marks).filter(k=>G.marks[k]==='liar').map(Number);
 function loadCase(){
   let c = generateCase(G.caseNo);
   if(!c) c = generateCase(1);          // 이론상 도달 불가. 그래도 판이 멈추지 않게.
-  G.cur = c; G.marks = {}; G.accusing = false; G.pick = null;
+  G.cur = c; G.marks = {};
   G.timeLeft = CONFIG.TIME_BASE + CONFIG.TIME_PER_PERSON * c.people.length;
   render();
   startTimer();
@@ -524,7 +542,6 @@ function drawClock(){
 }
 function onTimeout(){
   G.lives--;
-  G.accusing = false; G.pick = null;
   beep(180,.3,'sawtooth'); setTimeout(()=>beep(120,.4,'sawtooth'), 200);
   showResult(false, true);
 }
@@ -558,16 +575,15 @@ function render(){
   $('caseNo').textContent = t('caseNo', c.caseNo, CONFIG.TOTAL_CASES);
   drawClock();
   $('intro').textContent  = t('intro', c.place[LANG], c.people.length);
-  $('rule').innerHTML     = c.extraLiars ? t('ruleExtra', c.extraLiars) : t('ruleNoExtra');
+  $('rule').innerHTML     = liarCount() > 1 ? t('ruleMany', liarCount()) : t('ruleOne');
 
   const box = $('people');
-  box.className = G.accusing ? 'accusing' : '';
   box.innerHTML = '';
   c.people.forEach(p=>{
     const m = G.marks[p.idx];
-    const picked = G.pick === p.idx;
+    const picked = m === 'liar';
     const el = document.createElement('div');
-    el.className = 'p' + (picked ? ' picked' : m==='out' ? ' out' : m==='hot' ? ' hot' : '');
+    el.className = 'p' + (picked ? ' picked' : m==='out' ? ' out' : '');
     el.innerHTML = `
       <div class="face" style="background:${p.face}">${p.name[LANG][0]}</div>
       <div class="pbody">
@@ -575,43 +591,46 @@ function render(){
         <div class="pmot">${p.motive[LANG]}</div>
         <div class="psay">“${stmtText(c.stmts[p.idx], c.people)}”</div>
       </div>
-      <div class="pmark">${picked ? '✓' : m==='out' ? '✕' : m==='hot' ? '?' : ''}</div>`;
+      <div class="pmark">${picked ? '✓' : m==='out' ? '✕' : ''}</div>`;
     el.onclick = ()=>onPerson(p);
     box.appendChild(el);
   });
 
+  // 지목 모드를 따로 두지 않는다. 사람을 눌러 거짓말쟁이로 찍고, 인원이 맞으면 확정된다.
   const a = $('actions'); a.innerHTML = '';
-  if(G.pick != null){
-    const name = c.people[G.pick].name[LANG];
-    a.append(
-      mkBtn(t('cancel'), 'btn', ()=>{ G.pick=null; G.accusing=true; render(); }),
-      mkBtn(t('confirmBtn', name), 'btn danger', ()=>doAccuse())
-    );
-    $('hint').textContent = '';
-  }else if(G.accusing){
-    a.append(mkBtn(t('cancel'), 'btn', ()=>{ G.accusing=false; render(); }));
-    $('hint').textContent = t('pickWho');
+  const k = liarCount(), cur = chosen().length;
+  if(cur === k){
+    a.append(mkBtn(t('submitReady', k), 'btn danger', ()=>doSubmit()));
   }else{
-    a.append(mkBtn(t('accuse'), 'btn danger', ()=>{ G.accusing=true; render(); }));
-    $('hint').textContent = t('markHint');
+    const b = mkBtn(t('submitCount', cur, k), 'btn');
+    b.style.opacity = .45; b.style.cursor = 'default';
+    a.append(b);
   }
+  $('hint').textContent = t('markHint');
   $('langBtn').textContent = LANG === 'ko' ? 'EN' : '한';
   document.querySelectorAll('[data-t]').forEach(e=> e.textContent = t(e.dataset.t));
   document.documentElement.lang = LANG;
 }
 
+// 없음 → 거짓말 ✓ → 결백 ✕ → 없음
 function onPerson(p){
-  if(G.accusing){ G.pick = p.idx; G.accusing = false; beep(300,.07,'square'); render(); return; }
-  if(G.pick != null) return;
   const cur = G.marks[p.idx];
-  G.marks[p.idx] = cur === undefined ? 'out' : cur === 'out' ? 'hot' : undefined;
-  beep(cur === undefined ? 330 : 440, .04, 'sine', .03);
+  if(cur === undefined){
+    if(chosen().length >= liarCount()){ beep(160,.1,'square'); return; }  // 인원 초과
+    G.marks[p.idx] = 'liar';  beep(340,.06,'square');
+  }else if(cur === 'liar'){
+    G.marks[p.idx] = 'out';   beep(260,.05,'square');
+  }else{
+    delete G.marks[p.idx];    beep(300,.04,'sine',.03);
+  }
   render();
 }
 
-function doAccuse(){
+function doSubmit(){
   const c = G.cur;
-  const right = G.pick === c.culprit;
+  const said = chosen().sort((a,b)=>a-b);
+  const real = [...c.liars].sort((a,b)=>a-b);
+  const right = said.length === real.length && said.every((v,i)=>v === real[i]);
   if(right){ G.solved++; beep(620,.1); setTimeout(()=>beep(830,.14), 90); }
   else     { G.lives--;  beep(200,.18,'sawtooth'); setTimeout(()=>beep(140,.24,'sawtooth'), 120); }
   showResult(right);
@@ -631,10 +650,22 @@ function showResult(right, timedOut){
     </div>`;
   }).join('');
 
+  // 최후의 발언 — 결백한 거짓말쟁이는 숨기던 걸 털어놓고, 범인은 인정한다.
+  // 여기서 "왜 결백한데 거짓말을 했나"가 풀린다.
+  const last = [...c.liars].sort((a,b)=>a-b).map(i=>{
+    const p = c.people[i];
+    const line = i === c.culprit ? t('culpritLine') : t('confess', p.secret[LANG]);
+    return `<div class="rrow${i===c.culprit?' culprit':''}">
+      <span class="rn">${p.name[LANG]}</span>
+      <div class="rs">${line}</div></div>`;
+  }).join('');
+
   $('resultCard').innerHTML = `
     <h2 style="color:${right?'var(--good)':'var(--bad)'}">${right ? t('right') : timedOut ? t('timeUp') : t('wrong')}</h2>
-    <p><b>${t('wasCulprit', c.people[c.culprit].name[LANG])}</b>${
-      right ? '' : timedOut ? ' ' + t('timeUpNote') : ' ' + t('youSaid', c.people[G.pick].name[LANG])}</p>
+    <p>${right ? '' : (timedOut ? t('timeUpNote') : t('missed')) + ' '}<b>${t('wasCulprit', c.people[c.culprit].name[LANG])}</b></p>
+    <h3 style="margin:14px 0 4px;font-size:12px;color:var(--tx2);letter-spacing:.08em">${t('lastWords')}</h3>
+    <div class="reveal">${last}</div>
+    <h3 style="margin:16px 0 4px;font-size:12px;color:var(--tx2);letter-spacing:.08em">${t('allSaid')}</h3>
     <div class="reveal">${rows}</div>
     <div style="margin-top:16px"></div>`;
 
