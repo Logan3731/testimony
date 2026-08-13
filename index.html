@@ -580,23 +580,28 @@ const stmtKey = st =>
   : st.type === 'count'  ? `count:${st.k}`
   : st.a != null         ? `${st.type}:${st.a}-${st.b}`
   : `${st.type}:${st.target}`;
-function makeStmt(p, n, culprit, liarSet, wantTrue, hidden, used, advanced){
+function makeStmt(p, n, culprit, liarSet, wantTrue, hidden, used, advanced, silent){
   const others = [];
   for(let i=0;i<n;i++) if(i!==p) others.push(i);
   const cand = [];
   const push = (type, target) => cand.push({speaker:p, type, target});
 
   for(const x of others){
+    const spoke = (x !== silent);   // 침묵자는 참·거짓 주장의 대상이 될 수 없다
     if(wantTrue){
       if(x === culprit) push('accuse', x);
       else             push('clear',  x);
-      if(liarSet.has(x)) push('liar',  x);
-      else               push('truth', x);
+      if(spoke){
+        if(liarSet.has(x)) push('liar',  x);
+        else               push('truth', x);
+      }
     }else{
       if(x !== culprit) push('accuse', x);
       else              push('clear',  x);      // 범인을 결백하다고 말하는 거짓
-      if(!liarSet.has(x)) push('liar',  x);
-      else                push('truth', x);
+      if(spoke){
+        if(!liarSet.has(x)) push('liar',  x);
+        else                push('truth', x);
+      }
     }
   }
   // "나는 범인이 아니다" — 결백하면 참, 범인이면 거짓
@@ -615,8 +620,10 @@ function makeStmt(p, n, culprit, liarSet, wantTrue, hidden, used, advanced){
       if(a === p || b === p) continue;
       const hasCulprit = (a === culprit || b === culprit);
       const hasLiar    = liarSet.has(a) || liarSet.has(b);
-      if(wantTrue === hasCulprit) cand.push({speaker:p, type:'either',     a, b});
-      if(wantTrue === hasLiar)    cand.push({speaker:p, type:'eitherLiar', a, b});
+      if(wantTrue === hasCulprit) cand.push({speaker:p, type:'either', a, b});
+      // 침묵자가 낀 쌍은 "거짓말을 하고 있다" 주장의 대상이 될 수 없다
+      if(a !== silent && b !== silent && wantTrue === hasLiar)
+        cand.push({speaker:p, type:'eitherLiar', a, b});
     }
   }
 
@@ -650,7 +657,7 @@ function generateCase(caseNo){
     const used = new Set();
     let ok = true;
     for(const p of speakers){
-      const st = makeStmt(p, n, culprit, liarSet, !liarSet.has(p), hidden, used, advanced);
+      const st = makeStmt(p, n, culprit, liarSet, !liarSet.has(p), hidden, used, advanced, silent);
       if(!st){ ok = false; break; }
       used.add(stmtKey(st));
       stmts.push(st);
