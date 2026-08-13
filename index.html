@@ -74,6 +74,20 @@
     background:#2c1a17; opacity:1;}
   .p.picked .pmark{color:var(--bad);}
 
+  /* ── 이름 추적 ── */
+  .ref{text-decoration:underline; text-decoration-style:dotted; text-underline-offset:3px;
+    text-decoration-color:#6f6555; cursor:pointer;}
+  .ref:hover{color:var(--acc); text-decoration-color:var(--acc);}
+  .p.focus{border-left-color:var(--acc)!important; background:#241d14; opacity:1;}
+  .p.focus .face{box-shadow:0 0 0 2px var(--acc);}
+  .p.rel{border-left-color:#8a6a2a; opacity:1;}
+  .p.rel .psay{color:#f3e4c2;}
+  .p.dimmed{opacity:.3;}
+  .focusbar{display:flex; align-items:center; gap:8px; margin:0 2px 9px;
+    font-size:12.5px; color:var(--acc);}
+  .focusbar button{background:none; border:1px solid var(--line); color:var(--tx2);
+    border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer; font-family:inherit;}
+
   /* 결과 화면에서 진실/거짓 표시 */
   .verdict{font-size:11px; font-weight:700; padding:2px 7px; border-radius:5px; margin-left:7px;
     vertical-align:middle;}
@@ -126,6 +140,7 @@
     <div id="rule"></div>
   </div>
 
+  <div id="focusbar"></div>
   <div id="people"></div>
 
   <div id="actions"></div>
@@ -300,7 +315,10 @@ const T = {
   submitReady:{ko:k=>`이 ${k}명으로 확정`, en:k=>`Name these ${k}`},
   submitCount:{ko:(cur,k)=>`거짓말쟁이 ${k}명을 고르세요 (${cur}/${k})`, en:(cur,k)=>`Choose ${k} liars (${cur}/${k})`},
   // 표시 라벨도 죄가 아니라 거짓말 기준으로 맞춘다 ("결백"은 죄에 대한 말이라 프레임이 섞였다)
-  markHint:{ko:'눌러서 표시: 거짓말 ✓ → 진실 ✕', en:'Tap to mark: lying ✓ → truthful ✕'},
+  markHint:{ko:'눌러서 표시: 거짓말 ✓ → 진실 ✕  ·  이름이나 얼굴을 누르면 그 사람이 얽힌 진술만 남는다',
+            en:'Tap to mark: lying ✓ → truthful ✕  ·  tap a name or face to trace who is talking about them'},
+  tracking:{ko:(n,k)=>`${eulReul(n)} 추적 중 — 언급한 사람 ${k}명`, en:(n,k)=>`Tracing ${n} — mentioned by ${k}`},
+  clearTrack:{ko:'해제', en:'clear'},
   right:{ko:'검거', en:'CASE CLOSED'},
   wrong:{ko:'오인', en:'WRONG'},
   wasCulprit:{ko:n=>`범인은 ${iEotDa(n)}다.`, en:n=>`The culprit was ${n}.`},
@@ -389,8 +407,11 @@ function stmtIsTrue(st, culprit, liarSet){
    참·거짓은 굵은 주장에 대해서만 따진다 (규칙 설명에도 그렇게 적어뒀다).
    근거를 붙인 이유: "박정한은 거짓말을 하고 있다"를 화자가 어떻게 아는지 설명할 수
    없으면 추리물이 아니라 이름표 붙은 논리 기호가 된다는 지적을 받았다. */
-function stmtText(st, people){
-  const X = st.target != null ? people[st.target].name[LANG] : null;
+// linkify: 진술 속 이름을 누를 수 있게 감싼다. 누르면 그 사람이 얽힌 진술이 전부 표시된다.
+// 화면에 이미 적혀 있는 걸 찾아 훑는 건 추리가 아니라 노동이라 도와줘도 되는 부분이다.
+function stmtText(st, people, linkify){
+  const raw = st.target != null ? people[st.target].name[LANG] : null;
+  const X = (raw && linkify) ? `<span class="ref" data-i="${st.target}">${raw}</span>` : raw;
   const S = SPOTS[st.spot][LANG];
   const v = st.v;
 
@@ -440,8 +461,9 @@ function stmtText(st, people){
 
 // 최후의 발언. 앞의 한 줄은 둘 다 똑같이 말하고(그래야 말투로 안 들킨다),
 // 뒤의 굵은 주장만 참·거짓이 갈린다.
-function finalText(f, people){
-  const X = people[f.target].name[LANG];
+function finalText(f, people, linkify){
+  const raw = people[f.target].name[LANG];
+  const X = linkify ? `<span class="ref" data-i="${f.target}">${raw}</span>` : raw;
   return `${t('finalLead')} <b>${f.type === 'truth' ? t('finalTruth', X) : t('finalLiar', X)}</b>`;
 }
 
@@ -623,7 +645,7 @@ const chosen = () => Object.keys(G.marks).filter(k=>G.marks[k]==='liar').map(Num
 function loadCase(){
   let c = generateCase(G.caseNo);
   if(!c) c = generateCase(1);          // 이론상 도달 불가. 그래도 판이 멈추지 않게.
-  G.cur = c; G.marks = {}; G.phase = 1; G.culpritPick = null;
+  G.cur = c; G.marks = {}; G.phase = 1; G.culpritPick = null; G.focus = null;
   G.timeLeft = CONFIG.TIME_BASE + CONFIG.TIME_PER_PERSON * c.people.length;
   render();
   startTimer();
@@ -692,42 +714,67 @@ function render(){
                       : c.hidden        ? t('ruleHidden')
                       : liarCount() > 1 ? t('ruleMany', liarCount()) : t('ruleOne');
 
+  // 이름 추적: 지금 보고 있는 사람과, 그 사람을 언급한 진술의 화자들
+  const rel = new Set();
+  if(G.focus != null){
+    rel.add(G.focus);
+    c.stmts.forEach(st=>{ if(st.target === G.focus) rel.add(st.speaker); });
+    if(G.phase === 2) Object.values(c.finals).forEach(f=>{ if(f.target === G.focus) rel.add(f.speaker); });
+  }
+
   const box = $('people');
   box.innerHTML = '';
   c.people.forEach(p=>{
     const m = G.marks[p.idx];
     const isLiar = c.liars.has(p.idx);
     const el = document.createElement('div');
+    const focusCls = G.focus == null ? ''
+                   : p.idx === G.focus ? ' focus'
+                   : rel.has(p.idx)    ? ' rel' : ' dimmed';
 
     if(G.phase === 2){
       // 1단계를 통과했으니 누가 거짓말했는지는 공개한다.
       // 최후의 발언이 "아까 누가 사실을 말했나"에 대한 것이라 이 표시가 곧 검증 재료다.
       const picked = G.culpritPick === p.idx;
-      el.className = 'p' + (picked ? ' picked' : isLiar ? '' : ' out');
+      el.className = 'p' + (picked ? ' picked' : isLiar ? '' : ' out') + focusCls;
       el.innerHTML = `
         <div class="face" style="background:${p.face}">${p.name[LANG][0]}</div>
         <div class="pbody">
           <div class="pname">${p.name[LANG]}<span class="verdict ${isLiar?'f':'t'}">${isLiar?t('lie'):t('truth')}</span></div>
-          <div class="psay">“${stmtText(c.stmts[p.idx], c.people)}”</div>
-          ${isLiar ? `<div class="pfinal">“${finalText(c.finals[p.idx], c.people)}”</div>` : ''}
+          <div class="psay">“${stmtText(c.stmts[p.idx], c.people, true)}”</div>
+          ${isLiar ? `<div class="pfinal">“${finalText(c.finals[p.idx], c.people, true)}”</div>` : ''}
         </div>
         <div class="pmark">${picked ? '✓' : ''}</div>`;
       if(isLiar) el.onclick = ()=>{ G.culpritPick = p.idx; beep(340,.06,'square'); render(); };
     }else{
       const picked = m === 'liar';
-      el.className = 'p' + (picked ? ' picked' : m==='out' ? ' out' : '');
+      el.className = 'p' + (picked ? ' picked' : m==='out' ? ' out' : '') + focusCls;
       el.innerHTML = `
         <div class="face" style="background:${p.face}">${p.name[LANG][0]}</div>
         <div class="pbody">
           <div class="pname">${p.name[LANG]}<span class="pjob">${p.job[LANG]}</span></div>
           <div class="pmot">${p.motive[LANG]}</div>
-          <div class="psay">“${stmtText(c.stmts[p.idx], c.people)}”</div>
+          <div class="psay">“${stmtText(c.stmts[p.idx], c.people, true)}”</div>
         </div>
         <div class="pmark">${picked ? '✓' : m==='out' ? '✕' : ''}</div>`;
       el.onclick = ()=>onPerson(p);
     }
+    // 얼굴을 누르면 그 사람을 추적한다 (카드 전체 클릭과 겹치지 않게 전파를 막는다)
+    el.querySelector('.face').onclick = ev=>{ ev.stopPropagation(); setFocus(p.idx); };
     box.appendChild(el);
   });
+  // 진술 속 이름도 같은 역할
+  box.querySelectorAll('.ref').forEach(a=>{
+    a.onclick = ev=>{ ev.stopPropagation(); setFocus(+a.dataset.i); };
+  });
+
+  const fb = $('focusbar'); fb.innerHTML = '';
+  if(G.focus != null){
+    fb.className = 'focusbar';
+    const n = rel.size - 1;
+    fb.append(document.createTextNode(t('tracking', c.people[G.focus].name[LANG], n)));
+    fb.appendChild(mkBtn(t('clearTrack'), '', ()=>setFocus(G.focus)));
+  }else fb.className = '';
 
   const a = $('actions'); a.innerHTML = '';
   if(G.phase === 2){
@@ -758,7 +805,14 @@ function render(){
   document.documentElement.lang = LANG;
 }
 
-// 없음 → 거짓말 ✓ → 결백 ✕ → 없음
+// 같은 사람을 다시 누르면 추적 해제
+function setFocus(i){
+  G.focus = (G.focus === i) ? null : i;
+  beep(G.focus == null ? 280 : 460, .05, 'sine', .035);
+  render();
+}
+
+// 없음 → 거짓말 ✓ → 진실 ✕ → 없음
 function onPerson(p){
   const cur = G.marks[p.idx];
   if(cur === undefined){
