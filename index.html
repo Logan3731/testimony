@@ -62,6 +62,7 @@
   .psay{font-size:14px; line-height:1.55; margin-top:6px; color:var(--paper);
     font-style:italic;}
   .psay b{font-style:normal; color:#fff; font-weight:700;}
+  .silentline{color:#7a7060;}
   .pfinal{font-size:13.5px; line-height:1.5; margin-top:7px; padding-top:7px;
     border-top:1px dashed var(--line); color:var(--acc); font-style:italic;}
   .pfinal b{font-style:normal; font-weight:700;}
@@ -174,46 +175,42 @@ const CONFIG = {
   TIME_PHASE2_PER_LIAR: 20,
 };
 
-// 사건별 난이도. people = 용의자 수, extraLiars = 결백한데 거짓말하는 사람 수.
-//
-// ※ 이전 버전에서는 증언을 여는 데 자원을 쓰게 했다가 실패했다. 정보를 감춰서 어렵게 만드니
-//   "다 듣지 않으면 무조건 찍어야 하는" 상황이 나왔고, 플레이테스트에서 두 사람 모두
-//   그걸 "운"으로 느꼈다. 그래서 진술은 전부 공개하고, 어려움은 추론 자체에서만 나오게 했다.
-//   난이도 노브는 인원 수와 거짓말쟁이 수 둘뿐이다.
-// hidden: true 면 거짓말쟁이가 몇 명인지 알려주지 않는다. 대신 용의자 중 누군가가
-// 그 숫자를 주장하고("여기서 거짓말하는 건 두 명이다"), 그 주장도 참·거짓을 따져야 한다.
-// 숫자를 세는 일과 사람을 가리는 일이 서로 물리게 만드는 게 목적. 상한은 MAX_HIDDEN_LIARS.
-// ※ "너무 쉽다"는 지적을 받아 전체적으로 한 칸씩 올렸다. 중복 진술을 막으면서
-//   같은 인원이라도 정보 밀도가 올라간 것도 감안했다.
+/* 사건마다 규칙이 바뀐다.
+   ※ 계속하게 만드는 힘이 "몇 건 풀었나"가 아니라 "다음엔 무슨 문제가 나올까"라는
+     플레이테스트 결과에 따라, 컨텐츠 축을 크기가 아니라 규칙으로 잡았다.
+     사건 수를 늘리거나 인원을 불리는 건 공략법을 아는 사람에게 같은 판의 반복이다.
+
+   twist 종류
+     basic     거짓말하는 사람은 범인 하나뿐
+     insider   결백한데 거짓말하는 사람이 섞인다
+     silent    한 명은 끝내 입을 열지 않았다. 그 사람이 범인일 수도 있다
+     inverted  범인은 거짓말을 하지 않았다 — 거짓말한 사람은 전부 결백하다
+     hidden    거짓말쟁이가 몇 명인지 알려주지 않는다 (누군가 그 수를 주장한다)
+
+   새 규칙을 더할 때 손볼 곳: STAGES 표, solutions(), generateCase(), 규칙 문구(T).
+
+   ※ 진술은 전부 공개한다. 예전에 증언을 여는 데 자원을 쓰게 했다가, 정보를 감춰서
+     어렵게 만드니 "다 듣지 않으면 무조건 찍어야 하는" 상황이 나왔고 두 테스터 모두
+     그걸 "운"으로 느꼈다. 어려움은 추론 자체에서만 나와야 한다.
+*/
+// 새 규칙이 나오는 사건은 인원을 한 번 줄인다 — 규칙에 적응할 여지를 주려고.
 const STAGES = [
-  /* 1  */ {people:5,  extraLiars:0},
-  /* 2  */ {people:6,  extraLiars:0},
-  /* 3  */ {people:6,  extraLiars:1},
-  /* 4  */ {people:7,  extraLiars:1},
-  /* 5  */ {people:7,  extraLiars:1},
-  /* 6  */ {people:8,  extraLiars:1},
-  /* 7  */ {people:8,  extraLiars:2},
-  /* 8  */ {people:9,  extraLiars:2},
-  /* 9  */ {people:7,  extraLiars:1, hidden:true},   // 익명 사건 시작 — 인원을 줄여 규칙에 적응할 여지를 준다
-  /* 10 */ {people:8,  extraLiars:2, hidden:true},
-  /* 11 */ {people:9,  extraLiars:2, hidden:true},
-  /* 12 */ {people:10, extraLiars:2, hidden:true},
+  /* 1  */ {people:5, extraLiars:0, twist:'basic'},
+  /* 2  */ {people:6, extraLiars:0, twist:'basic'},
+  /* 3  */ {people:6, extraLiars:1, twist:'insider'},
+  /* 4  */ {people:7, extraLiars:1, twist:'insider'},
+  /* 5  */ {people:6, extraLiars:1, twist:'silent'},
+  /* 6  */ {people:7, extraLiars:1, twist:'silent'},
+  /* 7  */ {people:6, extraLiars:2, twist:'inverted'},
+  /* 8  */ {people:7, extraLiars:2, twist:'inverted'},
+  /* 9  */ {people:8, extraLiars:2, twist:'insider'},
+  /* 10 */ {people:7, extraLiars:1, twist:'hidden'},
+  /* 11 */ {people:8, extraLiars:2, twist:'hidden'},
+  /* 12 */ {people:9, extraLiars:2, twist:'hidden'},
 ];
 const MAX_HIDDEN_LIARS = 3;   // 익명 사건에서 거짓말쟁이 수의 상한 (플레이어에게도 알려준다)
 const ADVANCED_FROM = 5;      // "범인은 A와 B 중 하나다" 같은 진술이 나오기 시작하는 사건
-// ※ 거짓말쟁이를 2명으로 올리면 사람이 따져야 할 (범인, 거짓말쟁이) 조합이
-//   8명 기준 56 → 168로 뛴다. 난이도는 인원으로만 올리고 거짓말쟁이는 1명에 묶어뒀다.
-//   플레이테스트에서 쉽다고 하면 뒤쪽 사건부터 extraLiars 를 2로 올릴 것.
-// 정규 수사(12건) 이후로는 표 대신 공식으로 만든다. 끝이 없어야 "다 깼다"도 없다.
-function stageCfg(n){
-  if(n <= STAGES.length) return STAGES[n-1];
-  const over = n - STAGES.length;
-  return {
-    people: Math.min(CAST.length, 10 + Math.floor(over / 3)),   // 10명에서 시작해 16명까지
-    extraLiars: 2,
-    hidden: true,
-  };
-}
+const stageCfg = n => STAGES[Math.min(n, STAGES.length) - 1];
 
 /* ═══════════════════════════════════════════════════════════
    인물과 배경
@@ -301,6 +298,7 @@ const iEotDa  = n => n + (hasBatchim(n) ? '이었' : '였');   // 정무열이�
 // 이름이 링크로 감싸이면 문자열 끝이 태그라 받침을 못 본다. 조사만 따로 뽑아 쓴다.
 const josaWa  = n => hasBatchim(n) ? '과' : '와';
 const josaEun = n => hasBatchim(n) ? '은' : '는';
+const josaI   = n => hasBatchim(n) ? '이' : '가';
 
 /* ═══════════════════════════════════════════════════════════
    언어
@@ -320,6 +318,18 @@ const T = {
            en:'Exactly <b>one of them is lying</b>. That one is the culprit.'},
   ruleMany:{ko:k=>`먼저 <b>거짓말을 하고 있는 ${k}명</b>을 가려내라. 범인이 누구인지는 그다음에 묻는다.`,
             en:k=>`First work out <b>which ${k} are lying</b>. Who did it comes after.`},
+  // 챕터 이름과 규칙 한 줄. 새 규칙을 더하면 여기에 두 줄만 추가하면 된다.
+  chap_basic:{ko:'기본 사건', en:'PLAIN CASE'},
+  chap_insider:{ko:'내부자 사건', en:'INSIDER CASE'},
+  chap_silent:{ko:'침묵 사건', en:'SILENT CASE'},
+  chap_inverted:{ko:'역전 사건', en:'INVERTED CASE'},
+  chap_hidden:{ko:'익명 사건', en:'UNKNOWN COUNT'},
+  ruleSilent:{ko:k=>`<b>한 명은 끝내 입을 열지 않았다.</b> 말한 사람 중 ${k}명이 거짓말을 하고 있다. 침묵한 사람도 범인일 수 있다.`,
+              en:k=>`<b>One of them never spoke.</b> ${k} of those who did are lying. The silent one could still be the culprit.`},
+  ruleInverted:{ko:k=>`이번엔 <b>범인이 거짓말을 하지 않았다.</b> 거짓말을 하고 있는 ${k}명은 전부 결백하고, 다른 것을 숨기고 있을 뿐이다.`,
+                en:k=>`This time <b>the culprit did not lie.</b> The ${k} who are lying are all innocent — they are hiding something else.`},
+  namePickOnly:{ko:'범인을 지목하세요', en:'Name the culprit'},
+  saidNothing:{ko:'끝내 아무 말도 하지 않았다.', en:'Said nothing at all.'},
   ruleHidden:{ko:`이번엔 <b>몇 명이 거짓말을 하는지 알려주지 않는다</b> (최대 ${MAX_HIDDEN_LIARS}명). 그 숫자를 말하는 사람이 있는데, 그 말이 참인지부터 따져야 한다.`,
               en:`This time <b>you are not told how many are lying</b> (at most ${MAX_HIDDEN_LIARS}). Someone claims a number — decide whether that claim itself holds.`},
   submitAny:{ko:n=>`이 ${n}명으로 확정`, en:n=>`Name these ${n}`},
@@ -365,12 +375,6 @@ const T = {
   busted:{ko:'수사 중단', en:'INVESTIGATION HALTED'},
   solvedN:{ko:(s,tot)=>`${tot}건 중 ${s}건 해결`, en:(s,tot)=>`${s} of ${tot} solved`},
   best:{ko:'최고 기록', en:'Best'},
-  stopHere:{ko:'여기서 마치기', en:'Stop here'},
-  goDeeper:{ko:'심화 수사로', en:'Go deeper'},
-  clearedNote:{ko:n=>`정규 수사 ${n}건을 모두 마쳤다. 여기서 그만둬도 되고, 더 어려운 사건으로 계속 가도 된다.`,
-               en:n=>`All ${n} regular cases closed. Stop here, or keep going into harder ones.`},
-  caseDeep:{ko:n=>`심화 수사 ${n}`, en:n=>`DEEP CASE ${n}`},
-  solvedOnly:{ko:s=>`${s}건 해결`, en:s=>`${s} cases solved`},
   retry:{ko:'다시 수사', en:'New investigation'},
   title:{ko:'증언', en:'TESTIMONY'},
   subtitle:{ko:'범인은 반드시 거짓말을 한다', en:'The culprit always lies'},
@@ -451,20 +455,20 @@ function stmtText(st, people, linkify){
   if(LANG === 'ko'){
     switch(st.type){
       case 'accuse': return v
-        ? `${eunNeun(X)} 그날 밤 손을 떨고 있었다. 내가 똑똑히 봤다. <b>${iGa(X)} 범인이다.</b>`
-        : `나는 ${S}에 있었다. ${iGa(X)} 거기서 빠져나오는 걸 봤다. <b>${iGa(X)} 범인이다.</b>`;
+        ? `${X}${josaEun(raw)} 그날 밤 손을 떨고 있었다. 내가 똑똑히 봤다. <b>${X}${josaI(raw)} 범인이다.</b>`
+        : `나는 ${S}에 있었다. ${X}${josaI(raw)} 거기서 빠져나오는 걸 봤다. <b>${X}${josaI(raw)} 범인이다.</b>`;
       case 'clear': return v
-        ? `내가 ${S}에서 ${eulReul(X)} 계속 보고 있었다. <b>${eunNeun(X)} 범인이 아니다.</b>`
-        : `${eunNeun(X)} 그 시간 내내 ${S}에서 나와 함께 있었다. <b>${eunNeun(X)} 범인이 아니다.</b>`;
+        ? `내가 ${S}에서 ${X}${hasBatchim(raw)?'을':'를'} 계속 보고 있었다. <b>${X}${josaEun(raw)} 범인이 아니다.</b>`
+        : `${X}${josaEun(raw)} 그 시간 내내 ${S}에서 나와 함께 있었다. <b>${X}${josaEun(raw)} 범인이 아니다.</b>`;
       case 'denySelf': return v
         ? `나는 ${S}에서 한 발짝도 움직이지 않았다. <b>나는 범인이 아니다.</b>`
         : `나는 그때 ${S}에 있었고 아무 데도 가지 않았다. <b>나는 범인이 아니다.</b>`;
       case 'liar': return v
-        ? `나는 ${S}에 있었으니까 안다. <b>${eunNeun(X)} 거짓말을 하고 있다.</b>`
-        : `${iGa(X)} 한 말은 내가 ${S}에서 본 것과 다르다. <b>${eunNeun(X)} 거짓말을 하고 있다.</b>`;
+        ? `나는 ${S}에 있었으니까 안다. <b>${X}${josaEun(raw)} 거짓말을 하고 있다.</b>`
+        : `${X}${josaI(raw)} 한 말은 내가 ${S}에서 본 것과 다르다. <b>${X}${josaEun(raw)} 거짓말을 하고 있다.</b>`;
       case 'truth': return v
-        ? `${iGa(X)} 한 말은 내가 아는 것과 정확히 맞는다. <b>${eunNeun(X)} 진실을 말하고 있다.</b>`
-        : `나도 ${S}에서 같은 것을 봤다. <b>${eunNeun(X)} 진실을 말하고 있다.</b>`;
+        ? `${X}${josaI(raw)} 한 말은 내가 아는 것과 정확히 맞는다. <b>${X}${josaEun(raw)} 진실을 말하고 있다.</b>`
+        : `나도 ${S}에서 같은 것을 봤다. <b>${X}${josaEun(raw)} 진실을 말하고 있다.</b>`;
       case 'count': return v
         ? `나는 ${S}에서 다들 뭐라고 하는지 다 들었다. <b>여기서 거짓말을 하고 있는 사람은 ${st.k}명이다.</b>`
         : `${S}에 있었으니 누가 무슨 말을 했는지 안다. <b>지금 거짓말을 하고 있는 사람은 ${st.k}명이다.</b>`;
@@ -530,25 +534,34 @@ const pick = a => a[rnd(a.length)];
 
 // 가능한 모든 (범인, 거짓말쟁이 집합) 조합을 훑어 앞뒤가 맞는 것을 센다.
 // 범인은 반드시 거짓말하므로 거짓말쟁이 집합에는 항상 범인이 들어간다.
-// hidden 이면 거짓말쟁이 수를 모르므로 1명부터 MAX_HIDDEN_LIARS 명까지 전부 훑는다.
-function solutions(stmts, n, extraLiars, hidden){
+/* 앞뒤가 맞는 (범인, 거짓말쟁이 집합) 조합을 전부 찾는다.
+
+   거짓말쟁이 집합에는 말을 한 사람만 들어간다 (침묵자는 거짓말도 못 한다).
+   inverted 규칙에서는 범인이 거짓말을 하지 않았으므로 범인이 집합에서 빠진다.
+   hidden 규칙에서는 집합 크기를 모르므로 1명부터 상한까지 전부 훑는다. */
+function solutions(stmts, q){
+  const {n, K, hidden, inverted, silent} = q;
   const out = [];
-  const sizes = hidden
-    ? Array.from({length: MAX_HIDDEN_LIARS}, (_,i)=>i)   // 범인 외에 0 ~ MAX-1 명
-    : [extraLiars];
-  const others = [];
+  const speakers = [];
+  for(let i=0;i<n;i++) if(i !== silent) speakers.push(i);
+
   for(let c=0;c<n;c++){
-    others.length = 0;
-    for(let i=0;i<n;i++) if(i!==c) others.push(i);
+    // 범인 본인이 거짓말쟁이 집합에 들어가는가
+    const selfLies = !inverted && c !== silent;
+    const pool = speakers.filter(i=>i !== c);
+    const sizes = hidden
+      ? Array.from({length: MAX_HIDDEN_LIARS}, (_,i)=>i)   // 범인 외에 0 ~ 상한-1 명
+      : [K];
     for(const want of sizes){
+      if(want > pool.length) continue;
       const combo = (start, acc)=>{
         if(acc.length === want){
-          const L = new Set([c, ...acc]);
+          const L = new Set(selfLies ? [c, ...acc] : acc);
           for(const st of stmts) if(stmtIsTrue(st, c, L) !== !L.has(st.speaker)) return;
           out.push({culprit:c, liars:[...L].sort((a,b)=>a-b)});
           return;
         }
-        for(let i=start;i<others.length;i++) combo(i+1, [...acc, others[i]]);
+        for(let i=start;i<pool.length;i++) combo(i+1, [...acc, pool[i]]);
       };
       combo(0, []);
     }
@@ -611,20 +624,30 @@ function makeStmt(p, n, culprit, liarSet, wantTrue, hidden, used, advanced){
 
 function generateCase(caseNo){
   const cfg = stageCfg(caseNo);
-  const n = cfg.people, hidden = !!cfg.hidden;
+  const n = cfg.people, twist = cfg.twist || 'basic';
+  const hidden = twist === 'hidden', inverted = twist === 'inverted';
   const advanced = caseNo >= ADVANCED_FROM;   // "둘 중 하나" 형태가 등장하는 시점
   // 익명 사건은 수를 안 알려주므로, 실제 수도 매번 달라야 한다. 늘 같으면 곧 들킨다.
   const K = hidden ? rnd(cfg.extraLiars + 1) : cfg.extraLiars;
 
   for(let attempt=0; attempt<600; attempt++){
     const culprit = rnd(n);
-    const pool = []; for(let i=0;i<n;i++) if(i!==culprit) pool.push(i);
-    const liarSet = new Set([culprit, ...shuffle(pool).slice(0, K)]);
+    // 침묵 사건: 한 명은 아무 말도 하지 않는다. 범인일 수도 있다.
+    const silent = twist === 'silent' ? rnd(n) : null;
+    const speakers = []; for(let i=0;i<n;i++) if(i !== silent) speakers.push(i);
+    const q = {n, K, hidden, inverted, silent};
+
+    // 거짓말쟁이 집합. inverted 면 범인은 여기 들어가지 않는다.
+    const pool = speakers.filter(i=>i !== culprit);
+    if(pool.length < K) continue;
+    const extra = shuffle(pool.slice()).slice(0, K);
+    const selfLies = !inverted && culprit !== silent;
+    const liarSet = new Set(selfLies ? [culprit, ...extra] : extra);
 
     const stmts = [];
     const used = new Set();
     let ok = true;
-    for(let p=0; p<n; p++){
+    for(const p of speakers){
       const st = makeStmt(p, n, culprit, liarSet, !liarSet.has(p), hidden, used, advanced);
       if(!st){ ok = false; break; }
       used.add(stmtKey(st));
@@ -637,13 +660,13 @@ function generateCase(caseNo){
     if(hidden && !stmts.some(st=>st.type === 'count')) continue;
 
     // 앞뒤가 맞는 답이 정확히 하나여야 한다
-    const sols = solutions(stmts, n, K, hidden);
+    const sols = solutions(stmts, q);
     if(sols.length !== 1) continue;
 
     // 진술 하나만 보고 답이 나오면 퍼즐이 아니다
     let trivial = false;
     for(const st of stmts){
-      if(solutions([st], n, K, hidden).length === 1){ trivial = true; break; }
+      if(solutions([st], q).length === 1){ trivial = true; break; }
     }
     if(trivial) continue;
 
@@ -653,7 +676,7 @@ function generateCase(caseNo){
     const minNeeded = K === 0 ? 2 : 3;
     let needed = 0;
     for(let i=0;i<stmts.length;i++){
-      if(solutions(stmts.filter((_,j)=>j!==i), n, K, hidden).length !== 1) needed++;
+      if(solutions(stmts.filter((_,j)=>j!==i), q).length !== 1) needed++;
     }
     if(needed < minNeeded) continue;
 
@@ -668,9 +691,12 @@ function generateCase(caseNo){
     for(const st of stmts){
       if(st.type === 'clear' || st.type === 'truth'){ cheap.add(st.speaker); cheap.add(st.target); }
     }
-    let leftover = 0;
-    for(let x=0; x<n; x++) if(!cheap.has(x)) leftover++;
-    if(leftover === 1) continue;
+    // (inverted 규칙은 범인이 거짓말을 하지 않으므로 이 지름길 자체가 성립하지 않는다)
+    if(!inverted){
+      let leftover = 0;
+      for(let x=0; x<n; x++) if(!cheap.has(x)) leftover++;
+      if(leftover === 1) continue;
+    }
 
     const cast    = shuffle(CAST.slice()).slice(0, n);
     const motives = shuffle(MOTIVES.slice());
@@ -696,13 +722,18 @@ function generateCase(caseNo){
       const la = liarSet.has(a), lb = liarSet.has(b);
       return (!la && !lb) ? 'both' : (la && lb) ? 'none' : 'one';
     };
+    // 2단계 후보 — 거짓말쟁이에 침묵자를 더한다. 침묵한 사람도 범인일 수 있기 때문.
+    // (inverted 규칙은 범인이 거짓말쟁이 안에 없으므로 2단계 자체가 없다)
+    const accused = inverted ? [] : [...new Set([...liarSet, ...(silent != null ? [silent] : [])])]
+                                      .sort((a,b)=>a-b);
     const finals = {};
     const usedFinal = new Set();
-    for(const p of liarSet){
+    for(const p of accused){
       const wantTrue = (p !== culprit);
       const cand = [];
       for(let a=0; a<n; a++) for(let b=a+1; b<n; b++){
         if(a === p || b === p) continue;
+        if(a === silent || b === silent) continue;   // 아까 한 말이 없으니 대상이 될 수 없다
         const real = modeOf(a,b);
         for(const mode of ['both','none','one']){
           if(wantTrue ? mode === real : mode !== real){
@@ -717,7 +748,8 @@ function generateCase(caseNo){
       finals[p] = f;
     }
     if(!ok) continue;
-    return {people, stmts, finals, culprit, liars:liarSet, extraLiars:K, hidden,
+    return {people, stmts, finals, culprit, liars:liarSet, accused,
+            extraLiars:K, twist, hidden, inverted, silent,
             caseNo, place:pick(PLACES)};
   }
   return null;
@@ -732,12 +764,12 @@ function newGame(){
   loadCase();
 }
 // 이번 사건에서 골라야 하는 거짓말쟁이 수 (범인 포함)
-const liarCount = () => G.cur.extraLiars + 1;
+const liarCount = () => G.cur.liars.size;
 const chosen = () => Object.keys(G.marks).filter(k=>G.marks[k]==='liar').map(Number);
 function loadCase(){
   let c = generateCase(G.caseNo);
   if(!c) c = generateCase(1);          // 이론상 도달 불가. 그래도 판이 멈추지 않게.
-  G.cur = c; G.marks = {}; G.phase = 1; G.culpritPick = null; G.focus = null;
+  G.cur = c; G.marks = {}; G.phase = c.inverted ? 2 : 1; G.culpritPick = null; G.focus = null;
   G.timeLeft = CONFIG.TIME_BASE + CONFIG.TIME_PER_PERSON * c.people.length;
   render();
   startTimer();
@@ -791,24 +823,28 @@ function mkBtn(label, cls, fn){
   b.className = cls; b.textContent = label; b.onclick = fn; return b;
 }
 
+// 침묵한 사람은 진술이 없다. 그 자리를 비워두지 않고 침묵 자체를 보여준다.
+function sayOf(c, idx){
+  if(idx === c.silent) return `<span class="silentline">${t('saidNothing')}</span>`;
+  const st = c.stmts.find(x=>x.speaker === idx);
+  return `“${stmtText(st, c.people, true)}”`;
+}
+
 function render(){
   const c = G.cur;
-  $('solved').textContent = G.caseNo > CONFIG.TOTAL_CASES
-    ? `${G.solved}` : `${G.solved}/${CONFIG.TOTAL_CASES}`;
+  $('solved').textContent = `${G.solved}/${CONFIG.TOTAL_CASES}`;
   $('lives').textContent  = '●'.repeat(G.lives) + '○'.repeat(CONFIG.LIVES - G.lives);
-  const chip = G.phase === 2 ? t('stepTwo')
-             : c.hidden        ? t('hiddenTag')
-             : liarCount() > 1 ? t('stepOne') : null;
-  const caseLabel = c.caseNo > CONFIG.TOTAL_CASES
-    ? t('caseDeep', c.caseNo - CONFIG.TOTAL_CASES)
-    : t('caseNo', c.caseNo, CONFIG.TOTAL_CASES);
-  $('caseNo').innerHTML = caseLabel +
+  const chip = (G.phase === 2 && !c.inverted) ? t('stepTwo') : t('chap_' + c.twist);
+  $('caseNo').innerHTML = t('caseNo', c.caseNo, CONFIG.TOTAL_CASES) +
     (chip ? `<span class="step">${chip}</span>` : '');
   drawClock();
   $('intro').textContent  = t('intro', c.place[LANG], c.people.length);
-  $('rule').innerHTML = G.phase === 2 ? t('phase2Rule')
-                      : c.hidden        ? t('ruleHidden')
-                      : liarCount() > 1 ? t('ruleMany', liarCount()) : t('ruleOne');
+  $('rule').innerHTML =
+      (G.phase === 2 && !c.inverted) ? t('phase2Rule')
+    : c.twist === 'hidden' ? t('ruleHidden')
+    : c.twist === 'silent' ? t('ruleSilent', c.liars.size)
+    : c.inverted           ? t('ruleInverted', c.liars.size)
+    : liarCount() > 1      ? t('ruleMany', liarCount()) : t('ruleOne');
 
   // 이름 추적: 지금 보고 있는 사람과, 그 사람을 언급한 진술의 화자들
   const rel = new Set();
@@ -828,20 +864,36 @@ function render(){
                    : p.idx === G.focus ? ' focus'
                    : rel.has(p.idx)    ? ' rel' : ' dimmed';
 
-    if(G.phase === 2){
+    if(G.phase === 2 && !c.inverted){
       // 1단계를 통과했으니 누가 거짓말했는지는 공개한다.
       // 최후의 발언이 "아까 누가 사실을 말했나"에 대한 것이라 이 표시가 곧 검증 재료다.
+      const isAccused = c.accused.includes(p.idx);
       const picked = G.culpritPick === p.idx;
-      el.className = 'p' + (picked ? ' picked' : isLiar ? '' : ' out') + focusCls;
+      const badge = p.idx === c.silent ? '' :
+        `<span class="verdict ${isLiar?'f':'t'}">${isLiar?t('lie'):t('truth')}</span>`;
+      el.className = 'p' + (picked ? ' picked' : isAccused ? '' : ' out') + focusCls;
       el.innerHTML = `
         <div class="face" style="background:${p.face}">${p.name[LANG][0]}</div>
         <div class="pbody">
-          <div class="pname">${p.name[LANG]}<span class="verdict ${isLiar?'f':'t'}">${isLiar?t('lie'):t('truth')}</span></div>
-          <div class="psay">“${stmtText(c.stmts[p.idx], c.people, true)}”</div>
-          ${isLiar ? `<div class="pfinal">“${finalText(c.finals[p.idx], c.people, true)}”</div>` : ''}
+          <div class="pname">${p.name[LANG]}${badge}</div>
+          <div class="psay">${sayOf(c, p.idx)}</div>
+          ${isAccused ? `<div class="pfinal">“${finalText(c.finals[p.idx], c.people, true)}”</div>` : ''}
         </div>
         <div class="pmark">${picked ? '✓' : ''}</div>`;
-      if(isLiar) el.onclick = ()=>{ G.culpritPick = p.idx; beep(340,.06,'square'); render(); };
+      if(isAccused) el.onclick = ()=>{ G.culpritPick = p.idx; beep(340,.06,'square'); render(); };
+    }else if(c.inverted){
+      // 역전 사건: 참·거짓을 밝히지 않고 전원이 후보다. 곧바로 범인을 지목한다.
+      const picked = G.culpritPick === p.idx;
+      el.className = 'p' + (picked ? ' picked' : '') + focusCls;
+      el.innerHTML = `
+        <div class="face" style="background:${p.face}">${p.name[LANG][0]}</div>
+        <div class="pbody">
+          <div class="pname">${p.name[LANG]}<span class="pjob">${p.job[LANG]}</span></div>
+          <div class="pmot">${p.motive[LANG]}</div>
+          <div class="psay">${sayOf(c, p.idx)}</div>
+        </div>
+        <div class="pmark">${picked ? '✓' : ''}</div>`;
+      el.onclick = ()=>{ G.culpritPick = p.idx; beep(340,.06,'square'); render(); };
     }else{
       const picked = m === 'liar';
       el.className = 'p' + (picked ? ' picked' : m==='out' ? ' out' : '') + focusCls;
@@ -850,10 +902,10 @@ function render(){
         <div class="pbody">
           <div class="pname">${p.name[LANG]}<span class="pjob">${p.job[LANG]}</span></div>
           <div class="pmot">${p.motive[LANG]}</div>
-          <div class="psay">“${stmtText(c.stmts[p.idx], c.people, true)}”</div>
+          <div class="psay">${sayOf(c, p.idx)}</div>
         </div>
         <div class="pmark">${picked ? '✓' : m==='out' ? '✕' : ''}</div>`;
-      el.onclick = ()=>onPerson(p);
+      if(p.idx !== c.silent) el.onclick = ()=>onPerson(p);   // 말을 안 했으니 거짓말쟁이로 찍을 수 없다
     }
     // 얼굴을 누르면 그 사람을 추적한다 (카드 전체 클릭과 겹치지 않게 전파를 막는다)
     el.querySelector('.face').onclick = ev=>{ ev.stopPropagation(); setFocus(p.idx); };
@@ -877,11 +929,11 @@ function render(){
     if(G.culpritPick != null){
       a.append(mkBtn(t('nameCulprit', c.people[G.culpritPick].name[LANG]), 'btn danger', ()=>doNameCulprit()));
     }else{
-      const b = mkBtn(t('pickCulprit'), 'btn');
+      const b = mkBtn(c.inverted ? t('namePickOnly') : t('pickCulprit'), 'btn');
       b.style.opacity = .45; b.style.cursor = 'default';
       a.append(b);
     }
-    $('hint').textContent = t('phase2Hint');
+    $('hint').textContent = c.inverted ? t('markHint') : t('phase2Hint');
   }else{
     // 지목 모드를 따로 두지 않는다. 사람을 눌러 거짓말쟁이로 찍고, 인원이 맞으면 확정된다.
     // 익명 사건은 몇 명인지 모르므로 한 명 이상이면 언제든 확정할 수 있다.
@@ -934,8 +986,8 @@ function doSubmit(){
     return showResult(false, 'liars');
   }
   beep(520,.09); setTimeout(()=>beep(700,.11), 80);
-  // 거짓말쟁이가 한 명뿐이면 그 사람이 곧 범인이라 2단계가 없다
-  if(liarCount() === 1){ G.solved++; return showResult(true); }
+  // 후보가 한 명뿐이면 그 사람이 곧 범인이라 2단계가 없다
+  if(c.accused.length === 1){ G.solved++; return showResult(true); }
   G.phase = 2; G.culpritPick = null;
   G.timeLeft = CONFIG.TIME_PHASE2_BASE + CONFIG.TIME_PHASE2_PER_LIAR * liarCount();
   render();
@@ -955,18 +1007,20 @@ function showResult(right, reason){
   stopTimer();
   const c = G.cur;
   const dead = G.lives <= 0;
+  // 침묵자는 진술이 없으므로 사람 번호로 진술을 찾으면 안 된다 (sayOf 가 처리한다).
   const rows = c.people.map(p=>{
     const lying = c.liars.has(p.idx);
+    const badge = p.idx === c.silent ? ''
+      : `<span class="verdict ${lying?'f':'t'}">${lying ? t('lie') : t('truth')}</span>`;
     return `<div class="rrow${p.idx===c.culprit?' culprit':''}">
-      <span class="rn">${p.name[LANG]}</span>
-      <span class="verdict ${lying?'f':'t'}">${lying ? t('lie') : t('truth')}</span>
-      <div class="rs">“${stmtText(c.stmts[p.idx], c.people)}”</div>
+      <span class="rn">${p.name[LANG]}</span>${badge}
+      <div class="rs">${sayOf(c, p.idx)}</div>
     </div>`;
   }).join('');
 
   // 최후의 발언 — 결백한 거짓말쟁이는 숨기던 걸 털어놓고, 범인은 인정한다.
   // 여기서 "왜 결백한데 거짓말을 했나"가 풀린다.
-  const last = [...c.liars].sort((a,b)=>a-b).map(i=>{
+  const last = (c.accused || []).map(i=>{
     const p = c.people[i];
     const line = i === c.culprit ? t('culpritLine') : t('confess', p.secret[LANG]);
     return `<div class="rrow${i===c.culprit?' culprit':''}">
@@ -979,32 +1033,18 @@ function showResult(right, reason){
       right ? t('right') : reason === 'timeout' ? t('timeUp') : t('wrong')}</h2>
     <p>${right ? '' : ({timeout:t('timeUpNote'), liars:t('missed'), culprit:t('liarsFound')}[reason] || '') + ' '
       }<b>${t('wasCulprit', c.people[c.culprit].name[LANG])}</b></p>
-    <h3 style="margin:14px 0 4px;font-size:12px;color:var(--tx2);letter-spacing:.08em">${t('lastWords')}</h3>
-    <div class="reveal">${last}</div>
+    ${last ? `<h3 style="margin:14px 0 4px;font-size:12px;color:var(--tx2);letter-spacing:.08em">${t('lastWords')}</h3>
+    <div class="reveal">${last}</div>` : ''}
     <h3 style="margin:16px 0 4px;font-size:12px;color:var(--tx2);letter-spacing:.08em">${t('allSaid')}</h3>
     <div class="reveal">${rows}</div>
-    ${(!dead && G.caseNo === CONFIG.TOTAL_CASES) ? `<p style="margin-top:14px"><b>${t('clearedNote', CONFIG.TOTAL_CASES)}</b></p>` : ''}
     <div style="margin-top:16px"></div>`;
 
-  // 기회가 떨어지면 끝. 정규 수사 12건을 채우면 계속할지 묻고, 그 뒤로는 끝이 없다.
-  const cleared = !dead && G.caseNo === CONFIG.TOTAL_CASES;
-  if(dead){
-    $('resultCard').appendChild(mkBtn(t('finish'), 'btn primary', ()=>{
-      $('resultOv').classList.add('hidden'); showEnd(true);
-    }));
-  }else if(cleared){
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:8px';
-    row.append(
-      mkBtn(t('stopHere'), 'btn', ()=>{ $('resultOv').classList.add('hidden'); showEnd(false); }),
-      mkBtn(t('goDeeper'), 'btn primary', ()=>{ $('resultOv').classList.add('hidden'); G.caseNo++; loadCase(); })
-    );
-    $('resultCard').appendChild(row);
-  }else{
-    $('resultCard').appendChild(mkBtn(t('next'), 'btn primary', ()=>{
-      $('resultOv').classList.add('hidden'); G.caseNo++; loadCase();
-    }));
-  }
+  const end = dead || G.caseNo >= CONFIG.TOTAL_CASES;
+  $('resultCard').appendChild(mkBtn(end ? t('finish') : t('next'), 'btn primary', ()=>{
+    $('resultOv').classList.add('hidden');
+    if(end) showEnd(dead);
+    else { G.caseNo++; loadCase(); }
+  }));
   $('resultOv').classList.remove('hidden');
 }
 
@@ -1013,8 +1053,8 @@ function showEnd(busted){
   localStorage.setItem('testimony_solved_best', best);
   $('resultCard').innerHTML = `
     <h2 style="color:${busted?'var(--bad)':'var(--good)'}">${busted ? t('busted') : t('cleared')}</h2>
-    <div class="big">${G.solved > CONFIG.TOTAL_CASES ? t('solvedOnly', G.solved) : t('solvedN', G.solved, CONFIG.TOTAL_CASES)}</div>
-    <p style="text-align:center">${t('best')} ${t('solvedOnly', best)}</p>
+    <div class="big">${t('solvedN', G.solved, CONFIG.TOTAL_CASES)}</div>
+    <p style="text-align:center">${t('best')} ${best}/${CONFIG.TOTAL_CASES}</p>
     <div style="margin-top:16px"></div>`;
   $('resultCard').appendChild(mkBtn(t('retry'), 'btn primary', ()=>{
     $('resultOv').classList.add('hidden'); newGame();
