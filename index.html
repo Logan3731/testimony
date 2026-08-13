@@ -142,7 +142,7 @@
    ═══════════════════════════════════════════════════════════ */
 const CONFIG = {
   LIVES: 3,           // 오답 지목 가능 횟수
-  TOTAL_CASES: 10,    // 한 판의 길이
+  TOTAL_CASES: 12,    // 한 판의 길이
 
   // 사건마다 주어지는 제한시간(초) = BASE + PER_PERSON × 용의자 수.
   // 5명 1분 45초 … 10명 3분. 한 판 전체로는 20~25분쯤.
@@ -165,18 +165,24 @@ const CONFIG = {
 //   "다 듣지 않으면 무조건 찍어야 하는" 상황이 나왔고, 플레이테스트에서 두 사람 모두
 //   그걸 "운"으로 느꼈다. 그래서 진술은 전부 공개하고, 어려움은 추론 자체에서만 나오게 했다.
 //   난이도 노브는 인원 수와 거짓말쟁이 수 둘뿐이다.
+// hidden: true 면 거짓말쟁이가 몇 명인지 알려주지 않는다. 대신 용의자 중 누군가가
+// 그 숫자를 주장하고("여기서 거짓말하는 건 두 명이다"), 그 주장도 참·거짓을 따져야 한다.
+// 숫자를 세는 일과 사람을 가리는 일이 서로 물리게 만드는 게 목적. 상한은 MAX_HIDDEN_LIARS.
 const STAGES = [
-  /* 1  */ {people:5, extraLiars:0},
-  /* 2  */ {people:5, extraLiars:0},
-  /* 3  */ {people:6, extraLiars:0},
-  /* 4  */ {people:6, extraLiars:1},
-  /* 5  */ {people:6, extraLiars:1},
-  /* 6  */ {people:7, extraLiars:1},
-  /* 7  */ {people:7, extraLiars:1},
-  /* 8  */ {people:8, extraLiars:1},
-  /* 9  */ {people:9, extraLiars:1},
-  /* 10 */ {people:10, extraLiars:1},
+  /* 1  */ {people:5,  extraLiars:0},
+  /* 2  */ {people:5,  extraLiars:0},
+  /* 3  */ {people:6,  extraLiars:0},
+  /* 4  */ {people:6,  extraLiars:1},
+  /* 5  */ {people:6,  extraLiars:1},
+  /* 6  */ {people:7,  extraLiars:1},
+  /* 7  */ {people:7,  extraLiars:1},
+  /* 8  */ {people:8,  extraLiars:1},
+  /* 9  */ {people:6,  extraLiars:1, hidden:true},   // 익명 사건 시작 — 인원을 줄여 규칙에 적응할 여지를 준다
+  /* 10 */ {people:7,  extraLiars:1, hidden:true},
+  /* 11 */ {people:8,  extraLiars:2, hidden:true},
+  /* 12 */ {people:9,  extraLiars:2, hidden:true},
 ];
+const MAX_HIDDEN_LIARS = 3;   // 익명 사건에서 거짓말쟁이 수의 상한 (플레이어에게도 알려준다)
 // ※ 거짓말쟁이를 2명으로 올리면 사람이 따져야 할 (범인, 거짓말쟁이) 조합이
 //   8명 기준 56 → 168로 뛴다. 난이도는 인원으로만 올리고 거짓말쟁이는 1명에 묶어뒀다.
 //   플레이테스트에서 쉽다고 하면 뒤쪽 사건부터 extraLiars 를 2로 올릴 것.
@@ -284,6 +290,11 @@ const T = {
            en:'Exactly <b>one of them is lying</b>. That one is the culprit.'},
   ruleMany:{ko:k=>`먼저 <b>거짓말을 하고 있는 ${k}명</b>을 가려내라. 범인이 누구인지는 그다음에 묻는다.`,
             en:k=>`First work out <b>which ${k} are lying</b>. Who did it comes after.`},
+  ruleHidden:{ko:`이번엔 <b>몇 명이 거짓말을 하는지 알려주지 않는다</b> (최대 ${MAX_HIDDEN_LIARS}명). 그 숫자를 말하는 사람이 있는데, 그 말이 참인지부터 따져야 한다.`,
+              en:`This time <b>you are not told how many are lying</b> (at most ${MAX_HIDDEN_LIARS}). Someone claims a number — decide whether that claim itself holds.`},
+  submitAny:{ko:n=>`이 ${n}명으로 확정`, en:n=>`Name these ${n}`},
+  submitNone:{ko:'거짓말한 사람을 고르세요', en:'Choose who is lying'},
+  hiddenTag:{ko:'익명 사건', en:'UNKNOWN COUNT'},
   stepOne:{ko:'1단계 · 거짓말 가려내기', en:'STEP 1 · WHO IS LYING'},
   stepTwo:{ko:'2단계 · 범인 지목',       en:'STEP 2 · NAME THE CULPRIT'},
   submitReady:{ko:k=>`이 ${k}명으로 확정`, en:k=>`Name these ${k}`},
@@ -328,6 +339,7 @@ const T = {
     '용의자들이 각자 한마디씩 한다. <b>범인이 한 말은 반드시 거짓이다.</b>',
     '결백한 사람 중에도 거짓말하는 사람이 섞인다. 돈 문제든 뭐든, 숨기고 싶은 게 따로 있는 사람들이다.',
     '<b>1단계</b> — 거짓말을 하고 있는 사람을 전원 찾는다. 몇 명인지는 알려준다.',
+    '뒤쪽에는 <b>익명 사건</b>이 나온다. 몇 명이 거짓말하는지 알려주지 않고, 대신 누군가가 그 숫자를 주장한다. 그 주장도 참·거짓을 따져야 한다.',
     '<b>2단계</b> — 잡힌 사람들이 최후의 발언을 한다. 이제 <b>결백한 사람은 사실대로 말하고 범인만 계속 거짓말한다.</b> 그 발언은 아까 누가 사실을 말했는지에 대한 것이라, 1단계에서 알아낸 걸로 검증된다. 여기서 범인을 고른다.',
     '각자 자기가 어디서 무엇을 봤는지까지 말한다. <b>참·거짓을 따지는 건 굵게 표시된 주장뿐이다.</b> 앞의 이야기는 그가 왜 그렇게 말하는지일 뿐, 따로 검증할 필요는 없다.',
     '"저 사람은 거짓말을 하고 있다" 같은 주장도 나온다. 그 주장 자체의 참·거짓도 따져야 한다.',
@@ -340,6 +352,7 @@ const T = {
     'Each suspect says one thing. <b>Whatever the culprit says is false.</b>',
     'Innocent people lie too — they have something else to hide.',
     '<b>Step 1</b> — name everyone who is lying. You are told how many.',
+    'Later cases hide the count: nobody tells you how many are lying, but <b>someone claims a number</b> — and that claim can be a lie too.',
     '<b>Step 2</b> — the ones you caught get last words. Now <b>the innocent tell the truth and only the culprit keeps lying.</b> What they say is about who told the truth earlier, so you can check it against what you just worked out. That is how you find the culprit.',
     'Each also says where they were and what they saw. <b>Only the claim in bold is judged true or false.</b> The rest explains why they say it — you do not need to verify it separately.',
     'Claims like "he is lying" also appear. You must judge whether that claim itself holds.',
@@ -368,6 +381,7 @@ function stmtIsTrue(st, culprit, liarSet){
     case 'denySelf': return st.speaker !== culprit;
     case 'liar':     return liarSet.has(st.target);
     case 'truth':    return !liarSet.has(st.target);
+    case 'count':    return liarSet.size === st.k;   // 익명 사건에서만 나온다
   }
 }
 /* 진술문 만들기.
@@ -397,6 +411,9 @@ function stmtText(st, people){
       case 'truth': return v
         ? `${iGa(X)} 한 말은 내가 아는 것과 정확히 맞는다. <b>${eunNeun(X)} 진실을 말하고 있다.</b>`
         : `나도 ${S}에서 같은 것을 봤다. <b>${eunNeun(X)} 진실을 말하고 있다.</b>`;
+      case 'count': return v
+        ? `나는 ${S}에서 다들 뭐라고 하는지 다 들었다. <b>여기서 거짓말을 하고 있는 사람은 ${st.k}명이다.</b>`
+        : `${S}에 있었으니 누가 무슨 말을 했는지 안다. <b>지금 거짓말을 하고 있는 사람은 ${st.k}명이다.</b>`;
     }
   }
   switch(st.type){
@@ -415,6 +432,9 @@ function stmtText(st, people){
     case 'truth': return v
       ? `What ${X} says matches exactly what I know. <b>${X} is telling the truth.</b>`
       : `I saw the same thing from ${S}. <b>${X} is telling the truth.</b>`;
+    case 'count': return v
+      ? `I heard every word from ${S}. <b>Exactly ${st.k} of us are lying.</b>`
+      : `I was at ${S}, so I know who said what. <b>${st.k} of us are lying right now.</b>`;
   }
 }
 
@@ -434,29 +454,34 @@ const pick = a => a[rnd(a.length)];
 
 // 가능한 모든 (범인, 거짓말쟁이 집합) 조합을 훑어 앞뒤가 맞는 것을 센다.
 // 범인은 반드시 거짓말하므로 거짓말쟁이 집합에는 항상 범인이 들어간다.
-function solutions(stmts, n, extraLiars){
+// hidden 이면 거짓말쟁이 수를 모르므로 1명부터 MAX_HIDDEN_LIARS 명까지 전부 훑는다.
+function solutions(stmts, n, extraLiars, hidden){
   const out = [];
+  const sizes = hidden
+    ? Array.from({length: MAX_HIDDEN_LIARS}, (_,i)=>i)   // 범인 외에 0 ~ MAX-1 명
+    : [extraLiars];
   const others = [];
   for(let c=0;c<n;c++){
     others.length = 0;
     for(let i=0;i<n;i++) if(i!==c) others.push(i);
-    // others 에서 extraLiars 명을 고르는 모든 조합
-    const combo = (start, acc)=>{
-      if(acc.length === extraLiars){
-        const L = new Set([c, ...acc]);
-        for(const st of stmts) if(stmtIsTrue(st, c, L) !== !L.has(st.speaker)) return;
-        out.push({culprit:c, liars:[...L].sort((a,b)=>a-b)});
-        return;
-      }
-      for(let i=start;i<others.length;i++) combo(i+1, [...acc, others[i]]);
-    };
-    combo(0, []);
+    for(const want of sizes){
+      const combo = (start, acc)=>{
+        if(acc.length === want){
+          const L = new Set([c, ...acc]);
+          for(const st of stmts) if(stmtIsTrue(st, c, L) !== !L.has(st.speaker)) return;
+          out.push({culprit:c, liars:[...L].sort((a,b)=>a-b)});
+          return;
+        }
+        for(let i=start;i<others.length;i++) combo(i+1, [...acc, others[i]]);
+      };
+      combo(0, []);
+    }
   }
   return out;
 }
 
 // 어떤 사람 p 의 진술을, 원하는 참·거짓에 맞게 하나 만든다.
-function makeStmt(p, n, culprit, liarSet, wantTrue){
+function makeStmt(p, n, culprit, liarSet, wantTrue, hidden){
   const others = [];
   for(let i=0;i<n;i++) if(i!==p) others.push(i);
   const cand = [];
@@ -478,12 +503,21 @@ function makeStmt(p, n, culprit, liarSet, wantTrue){
   // "나는 범인이 아니다" — 결백하면 참, 범인이면 거짓
   if(wantTrue ? p !== culprit : p === culprit) push('denySelf', null);
 
+  // 익명 사건에서만: 거짓말쟁이 수를 주장한다
+  if(hidden){
+    if(wantTrue) cand.push({speaker:p, type:'count', k:liarSet.size});
+    else for(let k=1; k<=MAX_HIDDEN_LIARS; k++)
+      if(k !== liarSet.size) cand.push({speaker:p, type:'count', k});
+  }
+
   return cand.length ? pick(cand) : null;
 }
 
 function generateCase(caseNo){
   const cfg = stageCfg(caseNo);
-  const n = cfg.people, K = cfg.extraLiars;
+  const n = cfg.people, hidden = !!cfg.hidden;
+  // 익명 사건은 수를 안 알려주므로, 실제 수도 매번 달라야 한다. 늘 같으면 곧 들킨다.
+  const K = hidden ? rnd(cfg.extraLiars + 1) : cfg.extraLiars;
 
   for(let attempt=0; attempt<600; attempt++){
     const culprit = rnd(n);
@@ -493,20 +527,24 @@ function generateCase(caseNo){
     const stmts = [];
     let ok = true;
     for(let p=0; p<n; p++){
-      const st = makeStmt(p, n, culprit, liarSet, !liarSet.has(p));
+      const st = makeStmt(p, n, culprit, liarSet, !liarSet.has(p), hidden);
       if(!st){ ok = false; break; }
       stmts.push(st);
     }
     if(!ok) continue;
 
+    // 익명 사건은 거짓말쟁이 수를 알려주지 않으므로, 그 수를 말하는 진술이 하나는 있어야
+    // 플레이어에게 잡을 손잡이가 생긴다.
+    if(hidden && !stmts.some(st=>st.type === 'count')) continue;
+
     // 앞뒤가 맞는 답이 정확히 하나여야 한다
-    const sols = solutions(stmts, n, K);
+    const sols = solutions(stmts, n, K, hidden);
     if(sols.length !== 1) continue;
 
     // 진술 하나만 보고 답이 나오면 퍼즐이 아니다
     let trivial = false;
     for(const st of stmts){
-      if(solutions([st], n, K).length === 1){ trivial = true; break; }
+      if(solutions([st], n, K, hidden).length === 1){ trivial = true; break; }
     }
     if(trivial) continue;
 
@@ -516,7 +554,7 @@ function generateCase(caseNo){
     const minNeeded = K === 0 ? 2 : 3;
     let needed = 0;
     for(let i=0;i<stmts.length;i++){
-      if(solutions(stmts.filter((_,j)=>j!==i), n, K).length !== 1) needed++;
+      if(solutions(stmts.filter((_,j)=>j!==i), n, K, hidden).length !== 1) needed++;
     }
     if(needed < minNeeded) continue;
 
@@ -565,7 +603,8 @@ function generateCase(caseNo){
       }
       finals[p] = pick(cand);
     }
-    return {people, stmts, finals, culprit, liars:liarSet, extraLiars:K, caseNo, place:pick(PLACES)};
+    return {people, stmts, finals, culprit, liars:liarSet, extraLiars:K, hidden,
+            caseNo, place:pick(PLACES)};
   }
   return null;
 }
@@ -642,11 +681,15 @@ function render(){
   const c = G.cur;
   $('solved').textContent = `${G.solved}/${CONFIG.TOTAL_CASES}`;
   $('lives').textContent  = '●'.repeat(G.lives) + '○'.repeat(CONFIG.LIVES - G.lives);
+  const chip = G.phase === 2 ? t('stepTwo')
+             : c.hidden        ? t('hiddenTag')
+             : liarCount() > 1 ? t('stepOne') : null;
   $('caseNo').innerHTML = `${t('caseNo', c.caseNo, CONFIG.TOTAL_CASES)}` +
-    (liarCount() > 1 ? `<span class="step">${G.phase === 2 ? t('stepTwo') : t('stepOne')}</span>` : '');
+    (chip ? `<span class="step">${chip}</span>` : '');
   drawClock();
   $('intro').textContent  = t('intro', c.place[LANG], c.people.length);
   $('rule').innerHTML = G.phase === 2 ? t('phase2Rule')
+                      : c.hidden        ? t('ruleHidden')
                       : liarCount() > 1 ? t('ruleMany', liarCount()) : t('ruleOne');
 
   const box = $('people');
@@ -698,11 +741,13 @@ function render(){
     $('hint').textContent = t('phase2Hint');
   }else{
     // 지목 모드를 따로 두지 않는다. 사람을 눌러 거짓말쟁이로 찍고, 인원이 맞으면 확정된다.
+    // 익명 사건은 몇 명인지 모르므로 한 명 이상이면 언제든 확정할 수 있다.
     const k = liarCount(), cur = chosen().length;
-    if(cur === k){
-      a.append(mkBtn(t('submitReady', k), 'btn danger', ()=>doSubmit()));
+    const ready = c.hidden ? cur >= 1 : cur === k;
+    if(ready){
+      a.append(mkBtn(c.hidden ? t('submitAny', cur) : t('submitReady', k), 'btn danger', ()=>doSubmit()));
     }else{
-      const b = mkBtn(t('submitCount', cur, k), 'btn');
+      const b = mkBtn(c.hidden ? t('submitNone') : t('submitCount', cur, k), 'btn');
       b.style.opacity = .45; b.style.cursor = 'default';
       a.append(b);
     }
@@ -717,7 +762,9 @@ function render(){
 function onPerson(p){
   const cur = G.marks[p.idx];
   if(cur === undefined){
-    if(chosen().length >= liarCount()){ beep(160,.1,'square'); return; }  // 인원 초과
+    // 익명 사건에서 상한을 정답 인원으로 두면 그게 곧 답을 알려주는 셈이라 상한만 쓴다
+    const cap = G.cur.hidden ? MAX_HIDDEN_LIARS : liarCount();
+    if(chosen().length >= cap){ beep(160,.1,'square'); return; }
     G.marks[p.idx] = 'liar';  beep(340,.06,'square');
   }else if(cur === 'liar'){
     G.marks[p.idx] = 'out';   beep(260,.05,'square');
